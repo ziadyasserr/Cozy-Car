@@ -1,4 +1,3 @@
-
 import { useMemo, useState } from "react";
 import {
     Search,
@@ -28,9 +27,18 @@ import {
 import { dateTimeToMinutes } from "../../../utils/timeUtils";
 
 const MINUTES_PER_DAY = 1440;
+const MS_PER_DAY = 86400000;
+
+const FIXED_TYPE = "Fixed Vehicle Driver";
 
 function getAbsoluteTime(date, time) {
     return dateTimeToMinutes(date, time);
+}
+
+// Absolute minutes -> "YYYY-MM-DD" (UTC based, same basis as timeUtils)
+function minutesToDateString(totalMinutes) {
+    const days = Math.floor(totalMinutes / MINUTES_PER_DAY);
+    return new Date(days * MS_PER_DAY).toISOString().slice(0, 10);
 }
 
 function getShiftInterval(assignment) {
@@ -46,9 +54,54 @@ function getShiftInterval(assignment) {
 
     if (start === null || end === null) return null;
 
+    // Also covers Full Day stored as 00:00 -> 00:00 (24 hours).
     if (end <= start) end += MINUTES_PER_DAY;
 
     return { start, end };
+}
+
+// Shift of a fixed driver on a given date, as an absolute interval.
+function getFixedShiftParts(driver) {
+    if (
+        driver.fixedMode === "single" ||
+        driver.fixedShift === "00:00-24:00"
+    ) {
+        return { name: "Full Day", startTime: "00:00", endTime: "00:00" };
+    }
+
+    if (driver.fixedShift === "12:00-00:00") {
+        return { name: "Second Shift", startTime: "12:00", endTime: "00:00" };
+    }
+
+    return { name: "First Shift", startTime: "00:00", endTime: "12:00" };
+}
+
+// True when the union of the intervals fully covers [start, end].
+function intervalsCover(intervals, start, end) {
+    const sorted = intervals
+        .filter(Boolean)
+        .sort((a, b) => a.start - b.start);
+
+    const merged = [];
+
+    sorted.forEach((interval) => {
+        const last = merged[merged.length - 1];
+
+        if (last && interval.start <= last.end) {
+            last.end = Math.max(last.end, interval.end);
+        } else {
+            merged.push({ ...interval });
+        }
+    });
+
+    return merged.some(
+        (interval) => interval.start <= start && interval.end >= end
+    );
+}
+
+function hasOverlap(first, second) {
+    if (!first || !second) return false;
+    return first.start < second.end && second.start < first.end;
 }
 
 function formatTime(time) {
@@ -57,10 +110,9 @@ function formatTime(time) {
     const [hours, minutes] = time.split(":");
     const hour = Number(hours);
 
-    const suffix = hour >= 12 ? "PM" : "AM";
     const displayHour = hour % 12 || 12;
 
-    return `${displayHour}:${minutes} ${suffix}`;
+    return `${displayHour}:${minutes}`;
 }
 
 function formatDate(date) {
@@ -79,7 +131,7 @@ function formatDate(date) {
 
 export default function Allocation() {
     const { routes } = useRoutes();
-    const { vehicles } = useFleet();
+    const { vehicles, dailyAvailability } = useFleet();
     const { operations, setOperations } = useOperations();
     const { travelTimes } = useTravelTimes();
     const { drivers } = useDrivers();
@@ -170,116 +222,213 @@ export default function Allocation() {
         routes,
     ]);
 
+    // Active vehicles are available by default unless marked "Unavailable" for that date.
+    const isVehicleAvailableOn = (vehicleId, date) => {
+        const vehicle = vehicles.find(
+            (item) => Number(item.id) === Number(vehicleId)
+        );
+
+        if (!vehicle || vehicle.status !== "Active") return false;
+
+        return (
+            (dailyAvailability?.[date] || {})[vehicle.id] !==
+            "Unavailable"
+        );
+    };
+
+    // Interval a vehicle spends on an operation (used for driver busy checks).
+    const getOperationInterval = (operation, vehicleId) => {
+        const stopId = operation.vehicleAssignments?.[vehicleId];
+        if (!stopId) return null;
+
+        const route = routes.find(
+            (item) => item.name === operation.route
+        );
+
+        const stop = route?.stops.find(
+            (item) => Number(item.id) === Number(stopId)
+        );
+
+        const scheduled = getAbsoluteTime(
+            operation.date,
+            operation.time
+        );
+
+        if (!stop || scheduled === null) return null;
+
+        if (operation.type === "Departure") {
+            const duration = Number(stop.departure);
+            if (!Number.isFinite(duration)) return null;
+            return { start: scheduled, end: scheduled + duration };
+        }
+
+        const duration = Number(stop.attendance);
+        if (!Number.isFinite(duration)) return null;
+        return { start: scheduled - duration, end: scheduled };
+    };
+
+    // True when the driver is busy on ANOTHER vehicle during the window.
+    const isDriverBusyElsewhere = (driverId, window, targetOperationId) => {
+        const busyInRecords = driverAssignments.some((assignment) => {
+            if (Number(assignment.driverId) !== Number(driverId)) {
+                return false;
+            }
+
+            if (Number(assignment.vehicleId) === Number(selectedVehicleId)) {
+                return false;
+            }
+
+            return hasOverlap(getShiftInterval(assignment), window);
+        });
+
+        if (busyInRecords) return true;
+
+        return operations.some((operation) => {
+            if (String(operation.id) === String(targetOperationId)) {
+                return false;
+            }
+
+            return Object.entries(operation.driverAssignments || {}).some(
+                ([vehicleId, assignedDriverId]) => {
+                    if (Number(assignedDriverId) !== Number(driverId)) {
+                        return false;
+                    }
+
+                    if (Number(vehicleId) === Number(selectedVehicleId)) {
+                        return false;
+                    }
+
+                    return hasOverlap(
+                        getOperationInterval(operation, vehicleId),
+                        window
+                    );
+                }
+            );
+        });
+    };
+
+    // Drivers that can take the vehicle from its arrival at the drop-off
+    // point until the Attendance operation's scheduled time.
     const getAvailableDrivers = (suggestion) => {
         if (!selectedOperation || !selectedVehicleArrival) {
             return [];
         }
 
-        const targetOperation = operations.find(
-            (operation) =>
-                String(operation.id) ===
-                String(suggestion.operationId)
-        );
-
-        if (!targetOperation) return [];
-
-        const departureStart = getAbsoluteTime(
-            selectedOperation.date,
-            selectedOperation.time
-        );
-
-        const attendanceArrival = getAbsoluteTime(
+        const attendanceTime = getAbsoluteTime(
             suggestion.scheduledDate,
             suggestion.scheduledTime
         );
 
-        if (
-            departureStart === null ||
-            attendanceArrival === null
-        ) {
-            return [];
-        }
+        if (attendanceTime === null) return [];
 
-        const vehicleArrival =
-            selectedVehicleArrival.arrivalDateTime;
+        const windowStart = selectedVehicleArrival.arrivalDateTime;
+        const windowEnd = attendanceTime;
 
-        const tripStart = departureStart;
-        const tripEnd = attendanceArrival;
+        if (windowEnd < windowStart) return [];
 
-        if (tripEnd < vehicleArrival) return [];
+        const window = { start: windowStart, end: windowEnd };
+        const candidates = new Map();
 
-        const matchingAssignments = driverAssignments.filter(
-            (assignment) => {
-                if (
-                    Number(assignment.vehicleId) !==
-                    Number(selectedVehicleId)
-                ) {
-                    return false;
-                }
+        // 1) Drivers with actual assignment records on this vehicle.
+        const recordsByDriver = {};
 
-                const interval = getShiftInterval(assignment);
-                if (!interval) return false;
-
-                return (
-                    interval.start <= tripEnd &&
-                    interval.end >= tripEnd
-                );
+        driverAssignments.forEach((assignment) => {
+            if (
+                Number(assignment.vehicleId) !== Number(selectedVehicleId)
+            ) {
+                return;
             }
-        );
 
-        const assignedMatches = matchingAssignments
-            .map((assignment) => {
-                const driver = drivers.find(
-                    (item) =>
-                        Number(item.id) ===
-                        Number(assignment.driverId)
-                );
+            const interval = getShiftInterval(assignment);
+            if (!interval) return;
 
-                if (!driver || driver.status !== "Active") {
-                    return null;
+            const key = Number(assignment.driverId);
+            recordsByDriver[key] = recordsByDriver[key] || [];
+            recordsByDriver[key].push({ assignment, interval });
+        });
+
+        Object.entries(recordsByDriver).forEach(([driverId, records]) => {
+            const driver = drivers.find(
+                (item) => Number(item.id) === Number(driverId)
+            );
+
+            if (!driver || driver.status !== "Active") return;
+
+            if (
+                !intervalsCover(
+                    records.map((record) => record.interval),
+                    windowStart,
+                    windowEnd
+                )
+            ) {
+                return;
+            }
+
+            // Show the record that covers the end of the trip.
+            const display =
+                records.find(
+                    (record) =>
+                        record.interval.start <= windowEnd &&
+                        record.interval.end >= windowEnd
+                ) || records[0];
+
+            candidates.set(Number(driver.id), {
+                assignment: display.assignment,
+                driver,
+            });
+        });
+
+        // 2) Fixed drivers of this vehicle (their shift repeats every day).
+        const firstDay = Math.floor(windowStart / MINUTES_PER_DAY) - 1;
+        const lastDay = Math.floor(windowEnd / MINUTES_PER_DAY);
+
+        drivers
+            .filter(
+                (driver) =>
+                    driver.status === "Active" &&
+                    driver.driverType === FIXED_TYPE &&
+                    Number(driver.vehicleId) === Number(selectedVehicleId) &&
+                    !candidates.has(Number(driver.id))
+            )
+            .forEach((driver) => {
+                const shift = getFixedShiftParts(driver);
+                const intervals = [];
+
+                for (let day = firstDay; day <= lastDay; day++) {
+                    const date = minutesToDateString(day * MINUTES_PER_DAY);
+
+                    intervals.push(
+                        getShiftInterval({
+                            date,
+                            startTime: shift.startTime,
+                            endTime: shift.endTime,
+                        })
+                    );
                 }
 
-                return {
-                    assignment,
+                if (!intervalsCover(intervals, windowStart, windowEnd)) {
+                    return;
+                }
+
+                candidates.set(Number(driver.id), {
+                    assignment: {
+                        shift: shift.name,
+                        startTime: shift.startTime,
+                        endTime: shift.endTime,
+                    },
                     driver,
-                };
-            })
-            .filter(Boolean);
+                });
+            });
 
-        if (assignedMatches.length > 0) {
-            return assignedMatches;
-        }
-
-        const fixedDrivers = drivers.filter(
-            (driver) =>
-                driver.status === "Active" &&
-                driver.driverType === "Fixed Vehicle Driver" &&
-                Number(driver.vehicleId) === Number(selectedVehicleId)
+        // 3) Remove drivers who are busy on another vehicle in that period.
+        return Array.from(candidates.values()).filter(
+            (item) =>
+                !isDriverBusyElsewhere(
+                    item.driver.id,
+                    window,
+                    suggestion.operationId
+                )
         );
-
-        return fixedDrivers.map((driver) => {
-            const shiftRange =
-                driver.fixedShift === "12:00-00:00"
-                    ? {
-                        startTime: "12:00",
-                        endTime: "00:00",
-                        name: "Second Shift",
-                    }
-                    : {
-                        startTime: "00:00",
-                        endTime: "12:00",
-                        name: "First Shift",
-                    };
-
-            return {
-                assignment: {
-                    shift: shiftRange.name,
-                    startTime: shiftRange.startTime,
-                    endTime: shiftRange.endTime,
-                },
-                driver,
-            };
-        });
     };
 
     const getSuggestionConflict = (suggestion) => {
@@ -293,6 +442,18 @@ export default function Allocation() {
             return {
                 hasConflict: true,
                 reason: "Attendance operation not found.",
+            };
+        }
+
+        if (
+            !isVehicleAvailableOn(
+                selectedVehicleId,
+                targetOperation.date
+            )
+        ) {
+            return {
+                hasConflict: true,
+                reason: "This vehicle is marked unavailable on the Attendance date.",
             };
         }
 
@@ -358,7 +519,7 @@ export default function Allocation() {
             return {
                 canAssign: false,
                 reason:
-                    "No active driver assigned to this vehicle covers the complete trip and waiting time.",
+                    "No free driver covers the period from the vehicle's arrival until the Attendance time.",
                 availableDrivers,
             };
         }
@@ -432,17 +593,6 @@ export default function Allocation() {
             setAlertModal({
                 open: true,
                 message: "The selected driver is no longer available.",
-                type: "warning",
-            });
-            return;
-        }
-
-        const conflict = getSuggestionConflict(suggestion);
-
-        if (conflict.hasConflict) {
-            setAlertModal({
-                open: true,
-                message: conflict.reason,
                 type: "warning",
             });
             return;
@@ -870,7 +1020,7 @@ export default function Allocation() {
                                         </select>
                                     ) : (
                                         <p className="text-sm text-red-600">
-                                            No driver assignment covers this trip and its waiting period.
+                                            No free driver covers this trip and its waiting period.
                                         </p>
                                     )}
                                 </div>

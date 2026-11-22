@@ -3,9 +3,33 @@ import {
     dateTimeToMinutes,
 } from "./timeUtils.js";
 
+const MINUTES_PER_DAY = 1440;
+const MS_PER_DAY = 86400000;
+
 // Convert a date and time into an absolute minute value.
 function getDateTime(date, time) {
     return dateTimeToMinutes(date, time);
+}
+
+// Returns a valid, non-negative duration, or null when data is missing/invalid.
+function toValidDuration(value) {
+    if (value === null || value === undefined || value === "") return null;
+
+    const duration = Number(value);
+
+    return Number.isFinite(duration) && duration >= 0 ? duration : null;
+}
+
+// Absolute minutes -> "YYYY-MM-DD HH:mm" (used in messages).
+function formatDateTime(totalMinutes) {
+    const days = Math.floor(totalMinutes / MINUTES_PER_DAY);
+    const minutesOfDay = totalMinutes - days * MINUTES_PER_DAY;
+
+    const date = new Date(days * MS_PER_DAY).toISOString().slice(0, 10);
+    const hours = String(Math.floor(minutesOfDay / 60)).padStart(2, "0");
+    const minutes = String(minutesOfDay % 60).padStart(2, "0");
+
+    return `${date} ${hours}:${minutes}`;
 }
 
 // Get a stop from a route.
@@ -22,6 +46,7 @@ function getStop(routes, routeName, stopId) {
 }
 
 // Get the arrival details of a vehicle after a Departure operation.
+// After a Departure the vehicle is at the drop-off stop.
 export function getDepartureArrival(operation, vehicleId, routes) {
     if (
         !operation ||
@@ -46,11 +71,9 @@ export function getDepartureArrival(operation, vehicleId, routes) {
 
     if (!route || !stop) return null;
 
-    const duration = Number(stop.departure);
+    const duration = toValidDuration(stop.departure);
 
-    if (!Number.isFinite(duration) || duration < 0) {
-        return null;
-    }
+    if (duration === null) return null;
 
     const arrival = addMinutesToDateTime(
         operation.date,
@@ -77,11 +100,20 @@ export function getDepartureArrival(operation, vehicleId, routes) {
     };
 }
 
-// Get the travel time required between two consecutive trips.
+// Minutes the vehicle needs between the end of `fromTrip` and being ready
+// for `toTrip`.
 //
-// A vehicle finishing at a stop can:
-// 1. Move directly to another Attendance stop.
-// 2. Return to the company before a Departure operation.
+// Where a trip leaves the vehicle:
+// - Attendance: the vehicle returns to the company with the employees.
+// - Departure:  the vehicle is at the drop-off stop.
+//
+// Rules:
+// - Company   -> Departure : 0 (already at the company).
+// - Company   -> Attendance: Attendance duration of the new stop (Routes).
+// - Drop-off  -> Departure : return to the company (Departure duration of the stop).
+// - Drop-off  -> Attendance: Travel Times (0 if it is the same stop).
+//
+// Returns null when the data needed is missing. Nothing is invented.
 export function getRequiredTransferTime(
     fromTrip,
     toTrip,
@@ -89,9 +121,21 @@ export function getRequiredTransferTime(
 ) {
     if (!fromTrip || !toTrip) return null;
 
-    // The next trip is an Attendance operation.
-    // Its scheduled time is the required arrival time at its stop.
+    const endsAtCompany = fromTrip.endsAt
+        ? fromTrip.endsAt === "company"
+        : fromTrip.type === "Attendance";
+
+    if (toTrip.type === "Departure") {
+        if (endsAtCompany) return 0;
+
+        return toValidDuration(fromTrip.stopToCompanyDuration);
+    }
+
     if (toTrip.type === "Attendance") {
+        if (endsAtCompany) {
+            return toValidDuration(toTrip.duration);
+        }
+
         const fromStopId = Number(fromTrip.stopId);
         const toStopId = Number(toTrip.stopId);
 
@@ -111,25 +155,7 @@ export function getRequiredTransferTime(
                 Number(item.toStopId) === toStopId
         );
 
-        if (!travel) return null;
-
-        const duration = Number(travel.duration);
-
-        return Number.isFinite(duration) && duration >= 0
-            ? duration
-            : null;
-    }
-
-    // The next trip is a Departure operation.
-    // The vehicle must return from its current stop to the company.
-    if (toTrip.type === "Departure") {
-        const duration = Number(
-            fromTrip.stopToCompanyDuration
-        );
-
-        return Number.isFinite(duration) && duration >= 0
-            ? duration
-            : null;
+        return travel ? toValidDuration(travel.duration) : null;
     }
 
     return null;
@@ -191,8 +217,8 @@ export function getAttendanceSuggestions({
         if (scheduledDateTime === null) return false;
 
         return (
-            scheduledDateTime >= arrival.arrivalDateTime - 1440 &&
-            scheduledDateTime <= arrival.arrivalDateTime + 1440
+            scheduledDateTime >= arrival.arrivalDateTime - MINUTES_PER_DAY &&
+            scheduledDateTime <= arrival.arrivalDateTime + MINUTES_PER_DAY
         );
     });
 
@@ -245,14 +271,9 @@ export function getAttendanceSuggestions({
                     return;
                 }
 
-                travelDuration = Number(travel.duration);
+                travelDuration = toValidDuration(travel.duration);
 
-                if (
-                    !Number.isFinite(travelDuration) ||
-                    travelDuration < 0
-                ) {
-                    return;
-                }
+                if (travelDuration === null) return;
             }
 
             // Estimated arrival at the Attendance stop.
@@ -333,7 +354,22 @@ export function getAttendanceSuggestions({
 }
 
 // Build a vehicle trip from an operation and its assigned stop.
-function getTripDetails(operation, stopId, routes) {
+//
+// Departure:
+//   start = scheduled time (vehicle leaves the company)
+//   end   = start + stop Departure duration (vehicle at the drop-off stop)
+//   endsAt = "stop"
+//
+// Attendance:
+//   start = scheduled time - stop Attendance duration (vehicle leaves the company)
+//   scheduled time = vehicle must be at the pickup stop
+//   end   = scheduled time + stop Departure duration (vehicle back at the company)
+//   endsAt = "company"
+//
+// Returns null when a required duration is missing.
+export function getTripDetails(operation, stopId, routes) {
+    if (!operation || !Array.isArray(routes)) return null;
+
     const { route, stop } = getStop(
         routes,
         operation.route,
@@ -349,59 +385,64 @@ function getTripDetails(operation, stopId, routes) {
 
     if (scheduledDateTime === null) return null;
 
-    const duration = Number(
-        operation.type === "Departure"
-            ? stop.departure
-            : stop.attendance
-    );
+    // Time between the stop and the company (used to return to the company).
+    const stopToCompanyDuration = toValidDuration(stop.departure);
 
-    const stopToCompanyDuration = Number(stop.departure);
-
-    if (
-        !Number.isFinite(duration) ||
-        duration < 0 ||
-        !Number.isFinite(stopToCompanyDuration) ||
-        stopToCompanyDuration < 0
-    ) {
-        return null;
-    }
-
-    let start;
-    let end;
+    if (stopToCompanyDuration === null) return null;
 
     if (operation.type === "Departure") {
-        // Departure time = vehicle leaves the company.
-        start = scheduledDateTime;
-        end = start + duration;
-    } else if (operation.type === "Attendance") {
-        // Attendance time = vehicle arrives at the pickup stop.
-        end = scheduledDateTime;
-        start = end - duration;
-    } else {
-        return null;
+        const start = scheduledDateTime;
+        const end = start + stopToCompanyDuration;
+
+        return {
+            operation,
+            operationId: operation.id,
+            type: "Departure",
+            route,
+            stop,
+            stopId: Number(stop.id),
+            stopName: stop.name,
+
+            start,
+            end,
+            requiredTime: start,
+            endsAt: "stop",
+
+            duration: stopToCompanyDuration,
+            stopToCompanyDuration,
+            orderTime: start,
+        };
     }
 
-    return {
-        operation,
-        type: operation.type,
-        route,
-        stop,
-        stopId: Number(stop.id),
+    if (operation.type === "Attendance") {
+        const companyToStopDuration = toValidDuration(stop.attendance);
 
-        start,
-        end,
+        if (companyToStopDuration === null) return null;
 
-        duration,
-        stopToCompanyDuration,
+        const start = scheduledDateTime - companyToStopDuration;
+        const end = scheduledDateTime + stopToCompanyDuration;
 
-        // Used to order trips chronologically:
-        // Departure is ordered by its company departure time.
-        // Attendance is ordered by its stop arrival deadline.
-        orderTime:
-            operation.type === "Departure"
-                ? start
-                : end,
-    };
+        return {
+            operation,
+            operationId: operation.id,
+            type: "Attendance",
+            route,
+            stop,
+            stopId: Number(stop.id),
+            stopName: stop.name,
+
+            start,
+            end,
+            requiredTime: scheduledDateTime,
+            endsAt: "company",
+
+            duration: companyToStopDuration,
+            stopToCompanyDuration,
+            orderTime: start,
+        };
+    }
+
+    return null;
 }
 
 // Check whether a vehicle can move between its assigned trips.
@@ -508,27 +549,19 @@ export function checkVehicleConflict({
         const currentTrip = allTrips[i];
         const nextTrip = allTrips[i + 1];
 
-        // For Attendance, nextTrip.end is the required arrival time
-        // at the pickup stop.
-        //
-        // For Departure, nextTrip.start is the required time
-        // to leave the company.
-        const requiredTime =
-            nextTrip.type === "Attendance"
-                ? nextTrip.end
-                : nextTrip.start;
-
+        // Time the vehicle must be ready for the next trip:
+        // - Attendance: arrival time at the pickup stop.
+        // - Departure:  the time it leaves the company.
         const availableTime =
-            requiredTime - currentTrip.end;
+            nextTrip.requiredTime - currentTrip.end;
 
         if (availableTime < 0) {
             return {
                 hasConflict: true,
                 reason:
-                    `Vehicle cannot complete the trip on time. ` +
-                    `Previous trip ends at ${currentTrip.operation.date} ` +
-                    `${currentTrip.operation.time}, while the next trip ` +
-                    `requires the vehicle earlier.`,
+                    `Vehicle is still busy: its previous trip ends at ` +
+                    `${formatDateTime(currentTrip.end)}, but the next trip ` +
+                    `requires it at ${formatDateTime(nextTrip.requiredTime)}.`,
             };
         }
 
@@ -543,7 +576,7 @@ export function checkVehicleConflict({
                 hasConflict: true,
                 reason:
                     `Missing travel time from ${currentTrip.stop.name} ` +
-                    `to the next trip location.`,
+                    `to ${nextTrip.stop.name}.`,
             };
         }
 

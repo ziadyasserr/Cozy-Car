@@ -340,9 +340,8 @@ export default function VehicleTimeline() {
 
         const [hours, minutes] = time.split(":");
         const hour = Number(hours);
-        const suffix = hour >= 12 ? "PM" : "AM";
 
-        return `${hour % 12 || 12}:${minutes} ${suffix}`;
+        return `${hour % 12 || 12}:${minutes}`;
     };
 
     const formatDateTime = (date, time) => {
