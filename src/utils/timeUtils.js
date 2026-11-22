@@ -22,8 +22,8 @@ export function timeToMinutes(time) {
     return hours * 60 + minutes;
 }
 
-// Convert HH:mm to 12-hour format for display
-export function formatTime12Hour(time) {
+// Convert HH:mm to 12-hour format for display (e.g. 8:00 AM or 8:00)
+export function formatTime12Hour(time, withPeriod = false) {
     const totalMinutes = timeToMinutes(time);
 
     if (totalMinutes === null) return "";
@@ -34,7 +34,8 @@ export function formatTime12Hour(time) {
     const period = hours >= 12 ? "PM" : "AM";
     const displayHours = hours % 12 || 12;
 
-    return `${displayHours}:${String(minutes).padStart(2, "0")} ${period}`;
+    const formattedTime = `${displayHours}:${String(minutes).padStart(2, "0")}`;
+    return withPeriod ? `${formattedTime} ${period}` : formattedTime;
 }
 
 // Convert minutes from midnight to HH:mm

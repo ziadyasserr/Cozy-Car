@@ -1,55 +1,250 @@
 /**
- * Cozy Car - Smart Auto-Allocation Engine
- * 
- * Intelligently determines:
- * 1. Which vehicle should handle each operation
- * 2. Which driver is available for that vehicle (Fixed Vehicle Driver / Shift)
- * 3. Whether the vehicle can reach the destination on time (via Travel Times)
- * 4. Whether the driver's shift covers the trip duration
- * 5. Minimizes unnecessary vehicle usage, idle buffer, and deadhead mileage
+ * Cozy - Smart Auto-Allocation Engine
+ *
+ * Builds SUGGESTIONS only. Nothing is written until the supervisor applies them.
+ * - Never invents travel times or durations: missing data excludes the vehicle.
+ * - Uses getTripDetails / checkVehicleConflict from allocationUtils so the rules
+ *   match Operations and Allocation exactly.
+ * - After an Attendance the vehicle is at the company; after a Departure it is
+ *   at the drop-off stop.
+ * - Every suggestion carries a free driver who covers the whole period.
  */
 
-import { addMinutesToDateTime, dateTimeToMinutes } from "./timeUtils.js";
-import { getRequiredTransferTime } from "./allocationUtils.js";
+import { dateTimeToMinutes } from "./timeUtils.js";
+import {
+    checkVehicleConflict,
+    getRequiredTransferTime,
+    getTripDetails,
+} from "./allocationUtils.js";
+
+const MINUTES_PER_DAY = 1440;
+const MS_PER_DAY = 86400000;
+const FIXED_TYPE = "Fixed Vehicle Driver";
 
 function toAbsoluteMinutes(date, time) {
     return dateTimeToMinutes(date, time);
 }
 
-function getShiftInterval(driver, assignment, date) {
-    // 1. If explicit assignment exists
-    if (assignment && assignment.startTime && assignment.endTime) {
-        const start = toAbsoluteMinutes(assignment.date || date, assignment.startTime);
-        let end = toAbsoluteMinutes(assignment.date || date, assignment.endTime);
-        if (start !== null && end !== null) {
-            if (end <= start) end += 1440; // Spans midnight
-            return { start, end, shiftName: assignment.shift || "Custom Shift" };
-        }
+function minutesToDateString(totalMinutes) {
+    const days = Math.floor(totalMinutes / MINUTES_PER_DAY);
+    return new Date(days * MS_PER_DAY).toISOString().slice(0, 10);
+}
+
+function shiftDate(date, days) {
+    const timestamp = Date.parse(`${date}T00:00:00Z`);
+    if (Number.isNaN(timestamp)) return null;
+    return new Date(timestamp + days * MS_PER_DAY).toISOString().slice(0, 10);
+}
+
+// Interval of a driver assignment record. Also covers Full Day (00:00 -> 00:00).
+function getRecordInterval(assignment) {
+    const start = toAbsoluteMinutes(assignment.date, assignment.startTime);
+    let end = toAbsoluteMinutes(assignment.date, assignment.endTime);
+
+    if (start === null || end === null) return null;
+    if (end <= start) end += MINUTES_PER_DAY;
+
+    return { start, end };
+}
+
+function getFixedShiftParts(driver) {
+    if (driver.fixedMode === "single" || driver.fixedShift === "00:00-24:00") {
+        return { name: "Full Day", startTime: "00:00", endTime: "00:00" };
     }
 
-    // 2. Fixed Vehicle Driver standard shifts
-    if (driver && driver.fixedShift) {
-        if (driver.fixedShift === "12:00-00:00") {
-            const start = toAbsoluteMinutes(date, "12:00");
-            const end = toAbsoluteMinutes(date, "23:59") + 1;
-            return { start, end, shiftName: "Second Shift (12:00 PM - 12:00 AM)" };
+    if (driver.fixedShift === "12:00-00:00") {
+        return { name: "Second Shift", startTime: "12:00", endTime: "00:00" };
+    }
+
+    return { name: "First Shift", startTime: "00:00", endTime: "12:00" };
+}
+
+function intervalsCover(intervals, start, end) {
+    const sorted = intervals
+        .filter(Boolean)
+        .sort((a, b) => a.start - b.start);
+
+    const merged = [];
+
+    sorted.forEach((interval) => {
+        const last = merged[merged.length - 1];
+
+        if (last && interval.start <= last.end) {
+            last.end = Math.max(last.end, interval.end);
         } else {
-            const start = toAbsoluteMinutes(date, "00:00");
-            const end = toAbsoluteMinutes(date, "12:00");
-            return { start, end, shiftName: "First Shift (12:00 AM - 12:00 PM)" };
+            merged.push({ ...interval });
         }
-    }
+    });
 
-    // Default full day coverage if not strictly specified
-    return {
-        start: toAbsoluteMinutes(date, "00:00"),
-        end: toAbsoluteMinutes(date, "23:59") + 1,
-        shiftName: "Standard Shift"
+    return merged.some(
+        (interval) => interval.start <= start && interval.end >= end
+    );
+}
+
+function hasOverlap(first, second) {
+    if (!first || !second) return false;
+    return first.start < second.end && second.start < first.end;
+}
+
+// All trips of a vehicle from the day before to the day after the date.
+function getVehicleTrips(vehicleId, date, operations, routes) {
+    const dates = new Set(
+        [shiftDate(date, -1), date, shiftDate(date, 1)].filter(Boolean)
+    );
+
+    return operations
+        .filter(
+            (operation) =>
+                dates.has(operation.date) &&
+                Object.prototype.hasOwnProperty.call(
+                    operation.vehicleAssignments || {},
+                    String(vehicleId)
+                )
+        )
+        .map((operation) =>
+            getTripDetails(
+                operation,
+                operation.vehicleAssignments[vehicleId],
+                routes
+            )
+        )
+        .filter(Boolean)
+        .sort((a, b) => a.orderTime - b.orderTime);
+}
+
+// Interval a vehicle spends on an operation (used for driver busy checks).
+function getOperationInterval(operation, vehicleId, routes) {
+    const trip = getTripDetails(
+        operation,
+        operation.vehicleAssignments?.[vehicleId],
+        routes
+    );
+
+    return trip ? { start: trip.start, end: trip.end } : null;
+}
+
+// Free drivers who cover the whole window on the given vehicle.
+function getDriverOptions({
+    vehicleId,
+    window,
+    drivers,
+    driverAssignments,
+    operations,
+    routes,
+}) {
+    const vId = Number(vehicleId);
+    const candidates = new Map();
+    const recordsByDriver = {};
+
+    driverAssignments.forEach((assignment) => {
+        if (Number(assignment.vehicleId) !== vId) return;
+
+        const interval = getRecordInterval(assignment);
+        if (!interval) return;
+
+        const key = Number(assignment.driverId);
+        recordsByDriver[key] = recordsByDriver[key] || [];
+        recordsByDriver[key].push({ assignment, interval });
+    });
+
+    Object.entries(recordsByDriver).forEach(([driverId, records]) => {
+        const driver = drivers.find(
+            (item) => Number(item.id) === Number(driverId)
+        );
+
+        if (!driver || driver.status !== "Active") return;
+
+        const covers = intervalsCover(
+            records.map((record) => record.interval),
+            window.start,
+            window.end
+        );
+
+        if (!covers) return;
+
+        const display =
+            records.find(
+                (record) =>
+                    record.interval.start <= window.end &&
+                    record.interval.end >= window.end
+            ) || records[0];
+
+        candidates.set(Number(driver.id), {
+            driver,
+            shiftName: display.assignment.shift || "Assigned Shift",
+        });
+    });
+
+    const firstDay = Math.floor(window.start / MINUTES_PER_DAY) - 1;
+    const lastDay = Math.floor(window.end / MINUTES_PER_DAY);
+
+    drivers
+        .filter(
+            (driver) =>
+                driver.status === "Active" &&
+                driver.driverType === FIXED_TYPE &&
+                Number(driver.vehicleId) === vId &&
+                !candidates.has(Number(driver.id))
+        )
+        .forEach((driver) => {
+            const shift = getFixedShiftParts(driver);
+            const intervals = [];
+
+            for (let day = firstDay; day <= lastDay; day++) {
+                intervals.push(
+                    getRecordInterval({
+                        date: minutesToDateString(day * MINUTES_PER_DAY),
+                        startTime: shift.startTime,
+                        endTime: shift.endTime,
+                    })
+                );
+            }
+
+            if (intervalsCover(intervals, window.start, window.end)) {
+                candidates.set(Number(driver.id), {
+                    driver,
+                    shiftName: shift.name,
+                });
+            }
+        });
+
+    const isBusyElsewhere = (driverId) => {
+        const busyInRecords = driverAssignments.some(
+            (assignment) =>
+                Number(assignment.driverId) === Number(driverId) &&
+                Number(assignment.vehicleId) !== vId &&
+                hasOverlap(getRecordInterval(assignment), window)
+        );
+
+        if (busyInRecords) return true;
+
+        return operations.some((operation) =>
+            Object.entries(operation.driverAssignments || {}).some(
+                ([otherVehicleId, assignedDriverId]) =>
+                    Number(assignedDriverId) === Number(driverId) &&
+                    Number(otherVehicleId) !== vId &&
+                    hasOverlap(
+                        getOperationInterval(operation, otherVehicleId, routes),
+                        window
+                    )
+            )
+        );
     };
+
+    return Array.from(candidates.values()).filter(
+        (item) => !isBusyElsewhere(item.driver.id)
+    );
+}
+
+function getAssignedCountAtStop(operation, stopId) {
+    return Object.values(operation.vehicleAssignments || {}).filter(
+        (assignedStopId) => Number(assignedStopId) === Number(stopId)
+    ).length;
 }
 
 /**
- * Run smart allocation across all pending operations for a given date
+ * Run smart allocation across all operations of a date.
+ * Returns suggestions only. Nothing is saved here.
  */
 export function runSmartAllocation({
     date,
@@ -59,310 +254,250 @@ export function runSmartAllocation({
     drivers = [],
     driverAssignments = [],
     travelTimes = [],
-    routes = []
+    routes = [],
 }) {
-    const todayAvailability = dailyAvailability[date] || {};
+    const todayAvailability = dailyAvailability?.[date] || {};
 
-    // 1. Gather active vehicles available today
-    const activeVehicles = vehicles.filter((v) => {
-        if (v.status !== "Active") return false;
-        // If availability is explicitly set to Unavailable, exclude
-        if (todayAvailability[v.id] === "Unavailable") return false;
-        return true;
-    });
+    // Active vehicles are available by default unless marked "Unavailable".
+    const activeVehicles = vehicles.filter(
+        (vehicle) =>
+            vehicle.status === "Active" &&
+            todayAvailability[vehicle.id] !== "Unavailable"
+    );
 
-    // 2. Map vehicle -> permanent driver & shift info
-    const vehicleDriverMap = {};
-    activeVehicles.forEach((vehicle) => {
-        // Daily assignment check first
-        const dailyAssign = driverAssignments.find(
-            (da) => Number(da.vehicleId) === Number(vehicle.id) && da.date === date
+    // Working copy so suggestions made in this run affect later ones.
+    const workingOps = operations.map((operation) => ({
+        ...operation,
+        vehicleAssignments: { ...(operation.vehicleAssignments || {}) },
+        driverAssignments: { ...(operation.driverAssignments || {}) },
+    }));
+
+    const targetOps = workingOps
+        .filter((operation) => operation.date === date)
+        .sort(
+            (a, b) =>
+                (toAbsoluteMinutes(a.date, a.time) ?? 0) -
+                (toAbsoluteMinutes(b.date, b.time) ?? 0)
         );
-
-        let driver = null;
-        if (dailyAssign) {
-            driver = drivers.find((d) => Number(d.id) === Number(dailyAssign.driverId) && d.status === "Active");
-        }
-
-        // Fallback: Fixed Vehicle Driver permanently assigned
-        if (!driver) {
-            driver = drivers.find(
-                (d) => d.status === "Active" &&
-                       d.driverType === "Fixed Vehicle Driver" &&
-                       Number(d.vehicleId) === Number(vehicle.id)
-            );
-        }
-
-        const shiftInfo = getShiftInterval(driver, dailyAssign, date);
-
-        vehicleDriverMap[vehicle.id] = {
-            vehicle,
-            driver,
-            driverName: driver ? driver.name : "Unassigned Driver",
-            hasDriver: !!driver,
-            shiftInfo,
-        };
-    });
-
-    // 3. Find operations on this date that require allocation
-    const targetOps = operations
-        .filter((op) => op.date === date)
-        .sort((a, b) => {
-            // Sort chronologically by time
-            return (a.time || "").localeCompare(b.time || "");
-        });
-
-    // Track vehicle trip schedules: vehicleId -> array of { start, end, stopId, stopName, type, routeName }
-    const vehicleTripSchedules = {};
-    activeVehicles.forEach((v) => {
-        vehicleTripSchedules[v.id] = [];
-    });
-
-    // Pre-populate with already assigned operations for this vehicle
-    targetOps.forEach((op) => {
-        const assignments = op.vehicleAssignments || {};
-        const route = routes.find((r) => r.name === op.route);
-        if (!route) return;
-
-        Object.entries(assignments).forEach(([vId, stopId]) => {
-            const stop = route.stops.find((s) => Number(s.id) === Number(stopId));
-            if (!stop || !vehicleTripSchedules[vId]) return;
-
-            const scheduledMinutes = toAbsoluteMinutes(op.date, op.time);
-            const duration = Number(op.type === "Departure" ? stop.departure : stop.attendance) || 45;
-            
-            let start, end;
-            if (op.type === "Departure") {
-                start = scheduledMinutes;
-                end = start + duration;
-            } else {
-                end = scheduledMinutes;
-                start = end - duration;
-            }
-
-            vehicleTripSchedules[vId].push({
-                operationId: op.id,
-                type: op.type,
-                routeName: route.name,
-                stopId: Number(stop.id),
-                stopName: stop.name,
-                start,
-                end,
-                duration,
-                stopToCompanyDuration: Number(stop.departure) || 45
-            });
-        });
-    });
-
-    // Sort existing trips chronologically
-    Object.keys(vehicleTripSchedules).forEach((vId) => {
-        vehicleTripSchedules[vId].sort((a, b) => a.start - b.start);
-    });
 
     const proposedAllocations = [];
     const unfilledRequirements = [];
 
-    // 4. Process each operation requiring vehicles
-    targetOps.forEach((op) => {
-        const route = routes.find((r) => r.name === op.route);
-        if (!route || !route.stops || route.stops.length === 0) return;
+    const findBestCandidate = (operation, stop, reasons) => {
+        const trip = getTripDetails(operation, stop.id, routes);
 
-        const currentAssignments = { ...(op.vehicleAssignments || {}) };
-        const assignedVehicleIds = new Set(Object.keys(currentAssignments).map(Number));
-        const neededCount = Number(op.vehiclesCount) || 1;
-        const alreadyAssignedCount = assignedVehicleIds.size;
-        const remainingToAllocate = Math.max(0, neededCount - alreadyAssignedCount);
-
-        if (remainingToAllocate === 0) {
-            return; // Fully allocated already
+        if (!trip) {
+            reasons.add(`Missing or invalid duration for stop ${stop.name}.`);
+            return null;
         }
 
-        // Determine target stop (from requestedStopAllocations or first available stop)
-        let targetStop = route.stops[0];
-        if (op.requestedStopAllocations) {
-            const stopEntry = Object.entries(op.requestedStopAllocations).find(([, count]) => Number(count) > 0);
-            if (stopEntry) {
-                const found = route.stops.find((s) => Number(s.id) === Number(stopEntry[0]));
-                if (found) targetStop = found;
-            }
-        }
-
-        const scheduledMinutes = toAbsoluteMinutes(op.date, op.time);
-        const duration = Number(op.type === "Departure" ? targetStop.departure : targetStop.attendance) || 45;
-
-        let opStart, opEnd;
-        if (op.type === "Departure") {
-            opStart = scheduledMinutes;
-            opEnd = opStart + duration;
-        } else {
-            opEnd = scheduledMinutes;
-            opStart = opEnd - duration;
-        }
-
-        let allocatedForThisOp = 0;
-
-        // Score every candidate vehicle to find the optimal match
-        const candidateScores = [];
+        let best = null;
+        let noDriverFound = false;
 
         activeVehicles.forEach((vehicle) => {
-            const vId = Number(vehicle.id);
-            if (assignedVehicleIds.has(vId)) return; // Already in this op
-
-            const driverData = vehicleDriverMap[vId];
-            if (!driverData) return;
-
-            // Check Driver Shift Window
-            const shift = driverData.shiftInfo;
-            if (shift) {
-                // Trip must be covered within driver shift
-                if (opStart < shift.start || opEnd > shift.end) {
-                    return; // Driver off duty
-                }
+            if (
+                Object.prototype.hasOwnProperty.call(
+                    operation.vehicleAssignments,
+                    String(vehicle.id)
+                )
+            ) {
+                return;
             }
 
-            // Check Vehicle Schedule for Conflicts
-            const existingTrips = vehicleTripSchedules[vId] || [];
-            let hasConflict = false;
-            let idleBufferBefore = 9999;
-            let transferDurationNeeded = 0;
-            let prevStopName = "Company Base";
-
-            // Find immediate previous trip and immediate next trip
-            let prevTrip = null;
-            let nextTrip = null;
-
-            for (let i = 0; i < existingTrips.length; i++) {
-                const trip = existingTrips[i];
-                if (trip.end <= opStart) {
-                    prevTrip = trip;
-                } else if (trip.start >= opEnd && !nextTrip) {
-                    nextTrip = trip;
-                    break;
-                } else {
-                    // Overlaps directly
-                    hasConflict = true;
-                    break;
-                }
-            }
-
-            if (hasConflict) return;
-
-            // Check travel time from prevTrip to this operation
-            if (prevTrip) {
-                prevStopName = prevTrip.stopName;
-                const reqTransfer = getRequiredTransferTime(
-                    prevTrip,
-                    { type: op.type, stopId: targetStop.id },
-                    travelTimes
-                );
-
-                transferDurationNeeded = reqTransfer ?? 30; // fallback to 30 min if unmapped
-                const availableGap = opStart - prevTrip.end;
-
-                if (availableGap < transferDurationNeeded) {
-                    return; // Can't reach in time!
-                }
-                idleBufferBefore = availableGap - transferDurationNeeded;
-            }
-
-            // Check travel time from this operation to nextTrip
-            if (nextTrip) {
-                const currentAsTrip = {
-                    type: op.type,
-                    stopId: targetStop.id,
-                    stopToCompanyDuration: Number(targetStop.departure) || 45
-                };
-                const reqTransferToNext = getRequiredTransferTime(
-                    currentAsTrip,
-                    nextTrip,
-                    travelTimes
-                );
-                const nextTransferDuration = reqTransferToNext ?? 30;
-                const availableGapToNext = nextTrip.start - opEnd;
-
-                if (availableGapToNext < nextTransferDuration) {
-                    return; // Can't reach next trip in time!
-                }
-            }
-
-            // Scoring:
-            // 1. Prefer vehicles with active permanent driver
-            // 2. Prefer moderate idle buffer (15-60 mins) to minimize deadhead/waiting
-            // 3. Prefer vehicles already stationed nearby or at company base
-            let score = 100;
-            if (driverData.hasDriver) score += 50;
-            if (idleBufferBefore <= 60) score += 30;
-            else if (idleBufferBefore > 180) score -= 20;
-
-            candidateScores.push({
-                vehicle,
-                driverData,
-                score,
-                idleBufferBefore,
-                transferDurationNeeded,
-                prevStopName,
-                opStart,
-                opEnd,
-                targetStop
+            const conflict = checkVehicleConflict({
+                vehicleId: vehicle.id,
+                targetOperation: { ...operation, stopId: stop.id },
+                operations: workingOps,
+                travelTimes,
+                routes,
             });
+
+            if (conflict.hasConflict) {
+                if (conflict.reason.startsWith("Missing travel time")) {
+                    reasons.add(conflict.reason);
+                }
+                return;
+            }
+
+            const previousTrip =
+                getVehicleTrips(vehicle.id, date, workingOps, routes)
+                    .filter(
+                        (item) =>
+                            String(item.operationId) !== String(operation.id) &&
+                            item.orderTime < trip.orderTime
+                    )
+                    .pop() || null;
+
+            // The driver must cover the vehicle from the end of its previous trip
+            // until the new trip ends (for Attendance: back at the company).
+            const window = {
+                start: previousTrip ? previousTrip.end : trip.start,
+                end: trip.end,
+            };
+
+            const driverOptions = getDriverOptions({
+                vehicleId: vehicle.id,
+                window,
+                drivers,
+                driverAssignments,
+                operations: workingOps,
+                routes,
+            });
+
+            if (driverOptions.length === 0) {
+                noDriverFound = true;
+                return;
+            }
+
+            let idleBuffer = null;
+
+            if (previousTrip) {
+                const transfer =
+                    getRequiredTransferTime(previousTrip, trip, travelTimes) ?? 0;
+
+                idleBuffer = Math.max(
+                    trip.requiredTime - previousTrip.end - transfer,
+                    0
+                );
+            }
+
+            // Prefer a vehicle that continues without an empty return:
+            // Departure -> Attendance, or Attendance -> Departure.
+            const isChained =
+                previousTrip &&
+                ((previousTrip.type === "Departure" &&
+                    operation.type === "Attendance") ||
+                    (previousTrip.type === "Attendance" &&
+                        operation.type === "Departure"));
+
+            let score = 100;
+            if (isChained) score += 60;
+            if (idleBuffer !== null && idleBuffer <= 60) score += 20;
+            else if (idleBuffer !== null && idleBuffer > 180) score -= 20;
+
+            if (!best || score > best.score) {
+                best = {
+                    vehicle,
+                    trip,
+                    previousTrip,
+                    idleBuffer,
+                    driverOption: driverOptions[0],
+                    score,
+                };
+            }
         });
 
-        // Sort candidates best score first
-        candidateScores.sort((a, b) => b.score - a.score);
-
-        // Assign top candidates up to remaining needed count
-        for (let i = 0; i < candidateScores.length && allocatedForThisOp < remainingToAllocate; i++) {
-            const candidate = candidateScores[i];
-            const vId = Number(candidate.vehicle.id);
-
-            proposedAllocations.push({
-                operationId: op.id,
-                operationType: op.type,
-                operationRoute: op.route,
-                operationTime: op.time,
-                vehicleId: vId,
-                vehicleNumber: candidate.vehicle.number,
-                vehicleType: candidate.vehicle.type,
-                stopId: candidate.targetStop.id,
-                stopName: candidate.targetStop.name,
-                driverName: candidate.driverData.driverName,
-                shiftName: candidate.driverData.shiftInfo.shiftName,
-                idleBufferMinutes: candidate.idleBufferBefore === 9999 ? 0 : candidate.idleBufferBefore,
-                transferDurationMinutes: candidate.transferDurationNeeded,
-                previousLocation: candidate.prevStopName,
-                reason: `Vehicle ${candidate.vehicle.number} with driver ${candidate.driverData.driverName} is on shift. Feasible transfer with ${candidate.idleBufferBefore === 9999 ? 'ready start' : candidate.idleBufferBefore + 'm idle buffer'}.`
-            });
-
-            // Update in-memory schedule for this vehicle
-            vehicleTripSchedules[vId].push({
-                operationId: op.id,
-                type: op.type,
-                routeName: op.route,
-                stopId: Number(candidate.targetStop.id),
-                stopName: candidate.targetStop.name,
-                start: candidate.opStart,
-                end: candidate.opEnd,
-                duration,
-                stopToCompanyDuration: Number(candidate.targetStop.departure) || 45
-            });
-            vehicleTripSchedules[vId].sort((a, b) => a.start - b.start);
-
-            allocatedForThisOp++;
+        if (!best && noDriverFound) {
+            reasons.add(
+                "No free driver covers the required period for an available vehicle."
+            );
         }
 
-        if (allocatedForThisOp < remainingToAllocate) {
+        return best;
+    };
+
+    targetOps.forEach((operation) => {
+        const route = routes.find((item) => item.name === operation.route);
+        if (!route || !route.stops || route.stops.length === 0) return;
+
+        const requestedByStop = route.stops.map((stop) => ({
+            stop,
+            requested:
+                Number(operation.requestedStopAllocations?.[stop.id]) || 0,
+        }));
+
+        const totalRequested = requestedByStop.reduce(
+            (total, item) => total + item.requested,
+            0
+        );
+
+        if (totalRequested === 0) {
+            const missing =
+                (Number(operation.vehiclesCount) || 0) -
+                Object.keys(operation.vehicleAssignments).length;
+
+            if (missing > 0) {
+                unfilledRequirements.push({
+                    operationId: operation.id,
+                    route: operation.route,
+                    time: operation.time,
+                    type: operation.type,
+                    missingCount: missing,
+                    reason: "Stop distribution has not been entered for this operation.",
+                });
+            }
+
+            return;
+        }
+
+        let missingCount = 0;
+        const reasons = new Set();
+
+        requestedByStop.forEach(({ stop, requested }) => {
+            let remaining =
+                requested - getAssignedCountAtStop(operation, stop.id);
+
+            while (remaining > 0) {
+                const best = findBestCandidate(operation, stop, reasons);
+
+                if (!best) {
+                    missingCount += remaining;
+                    break;
+                }
+
+                operation.vehicleAssignments[best.vehicle.id] = Number(stop.id);
+                operation.driverAssignments[best.vehicle.id] = Number(
+                    best.driverOption.driver.id
+                );
+
+                const previousLocation = best.previousTrip
+                    ? best.previousTrip.endsAt === "company"
+                        ? "Company"
+                        : best.previousTrip.stopName
+                    : "Company";
+
+                proposedAllocations.push({
+                    operationId: operation.id,
+                    operationType: operation.type,
+                    operationRoute: operation.route,
+                    operationTime: operation.time,
+                    vehicleId: Number(best.vehicle.id),
+                    vehicleNumber: best.vehicle.number,
+                    vehicleType: best.vehicle.type,
+                    stopId: Number(stop.id),
+                    stopName: stop.name,
+                    driverId: Number(best.driverOption.driver.id),
+                    driverName: best.driverOption.driver.name,
+                    shiftName: best.driverOption.shiftName,
+                    idleBufferMinutes: best.idleBuffer ?? 0,
+                    previousLocation,
+                    reason: best.previousTrip
+                        ? `Vehicle ${best.vehicle.number} comes from ${previousLocation} (after ${best.previousTrip.type}) with driver ${best.driverOption.driver.name}.`
+                        : `Vehicle ${best.vehicle.number} starts from the company with driver ${best.driverOption.driver.name}.`,
+                });
+
+                remaining--;
+            }
+        });
+
+        if (missingCount > 0) {
             unfilledRequirements.push({
-                operationId: op.id,
-                route: op.route,
-                time: op.time,
-                type: op.type,
-                missingCount: remainingToAllocate - allocatedForThisOp,
-                reason: "Insufficient available vehicles or active drivers covering this time slot."
+                operationId: operation.id,
+                route: operation.route,
+                time: operation.time,
+                type: operation.type,
+                missingCount,
+                reason:
+                    reasons.size > 0
+                        ? Array.from(reasons).join(" ")
+                        : "No available vehicle can take this trip without a conflict.",
             });
         }
     });
 
-    const uniqueVehiclesUsed = new Set(proposedAllocations.map((a) => a.vehicleId)).size;
+    const uniqueVehiclesUsed = new Set(
+        proposedAllocations.map((item) => item.vehicleId)
+    ).size;
 
     return {
         date,
@@ -371,48 +506,78 @@ export function runSmartAllocation({
         unfilledRequirements,
         uniqueVehiclesUsed,
         totalActiveVehicles: activeVehicles.length,
-        isFullyAllocated: unfilledRequirements.length === 0
+        isFullyAllocated: unfilledRequirements.length === 0,
     };
 }
 
 /**
- * Apply proposed allocations to operations state
+ * Apply the approved allocations to the operations state.
+ * Saves the vehicle, stop, and the selected driver for each allocation.
  */
 export function applyAllocationsToOperations(operations, proposedAllocations) {
-    const updatedOps = [...operations];
+    const byOperation = new Map();
 
-    proposedAllocations.forEach((alloc) => {
-        const opIndex = updatedOps.findIndex((op) => op.id === alloc.operationId);
-        if (opIndex < 0) return;
+    proposedAllocations.forEach((allocation) => {
+        const list = byOperation.get(allocation.operationId) || [];
+        list.push(allocation);
+        byOperation.set(allocation.operationId, list);
+    });
 
-        const op = updatedOps[opIndex];
-        const newVehicleAssignments = { ...(op.vehicleAssignments || {}) };
-        newVehicleAssignments[alloc.vehicleId] = alloc.stopId;
+    return operations.map((operation) => {
+        const allocations = byOperation.get(operation.id);
+        if (!allocations) return operation;
 
-        const assignedIds = Object.keys(newVehicleAssignments).map(Number);
-        let status = op.status;
-        if (assignedIds.length >= op.vehiclesCount) {
+        const vehicleAssignments = { ...(operation.vehicleAssignments || {}) };
+        const driverAssignments = { ...(operation.driverAssignments || {}) };
+        const stopAllocations = (operation.stopAllocations || []).map(
+            (item) => ({ ...item })
+        );
+
+        allocations.forEach((allocation) => {
+            if (
+                Object.prototype.hasOwnProperty.call(
+                    vehicleAssignments,
+                    String(allocation.vehicleId)
+                )
+            ) {
+                return;
+            }
+
+            vehicleAssignments[allocation.vehicleId] = Number(allocation.stopId);
+            driverAssignments[allocation.vehicleId] = Number(allocation.driverId);
+
+            const entry = stopAllocations.find(
+                (item) => Number(item.stopId) === Number(allocation.stopId)
+            );
+
+            if (entry) {
+                entry.count = (entry.count || 0) + 1;
+            } else {
+                stopAllocations.push({
+                    stopId: Number(allocation.stopId),
+                    stopName: allocation.stopName,
+                    count: 1,
+                });
+            }
+        });
+
+        const assignedIds = Object.keys(vehicleAssignments).map(Number);
+        const required = Number(operation.vehiclesCount) || 0;
+
+        let status = "Pending";
+        if (assignedIds.length >= required && required > 0) {
             status = "Distributed";
         } else if (assignedIds.length > 0) {
             status = "Partially Distributed";
         }
 
-        // Update stop allocations
-        const stopAllocations = (op.stopAllocations || []).map((sa) => {
-            if (Number(sa.stopId) === Number(alloc.stopId)) {
-                return { ...sa, count: (sa.count || 0) + 1 };
-            }
-            return sa;
-        });
-
-        updatedOps[opIndex] = {
-            ...op,
-            vehicleAssignments: newVehicleAssignments,
+        return {
+            ...operation,
+            vehicleAssignments,
+            driverAssignments,
             assignedVehicles: assignedIds,
             stopAllocations,
-            status
+            status,
         };
     });
-
-    return updatedOps;
 }

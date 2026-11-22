@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useTranslation, Trans } from "react-i18next";
 import { Plus, Trash2, Pencil, X, Clock, Sparkles } from "lucide-react";
@@ -6,8 +5,13 @@ import { Plus, Trash2, Pencil, X, Clock, Sparkles } from "lucide-react";
 import { useFleet } from "../../../context/FleetContext";
 import { useOperations } from "../../../context/OperationsContext";
 import { useRoutes } from "../../../context/RoutesContext";
+import { useTravelTimes } from "../../../context/TravelTimesContext";
 import RecurringScheduleModal from "../components/RecurringScheduleModal";
 import OperatingAssistant from "../../../components/common/OperatingAssistant";
+import ConfirmModal from "../../../components/ui/ConfirmModal";
+import AlertModal from "../../../components/ui/AlertModal";
+import { checkVehicleConflict } from "../../../utils/allocationUtils";
+import { formatTime12Hour } from "../../../utils/timeUtils";
 
 const emptyForm = {
     date: new Date().toISOString().split("T")[0],
@@ -22,6 +26,7 @@ function Operations() {
     const { operations, setOperations } = useOperations();
     const { vehicles, dailyAvailability } = useFleet();
     const { routes } = useRoutes();
+    const { travelTimes } = useTravelTimes();
 
     const [showForm, setShowForm] = useState(false);
     const [showRecurringModal, setShowRecurringModal] = useState(false);
@@ -35,6 +40,27 @@ function Operations() {
     const [requestedStopAllocations, setRequestedStopAllocations] =
         useState({});
 
+    const [confirmDelete, setConfirmDelete] = useState({
+        open: false,
+        id: null,
+    });
+
+    // Pending edit that would clear the saved distribution.
+    const [confirmEdit, setConfirmEdit] = useState({
+        open: false,
+        operationData: null,
+    });
+
+    const [alertModal, setAlertModal] = useState({
+        open: false,
+        message: "",
+        title: t("Operations.validationErrorTitle"),
+    });
+
+    const showAlert = (message, title) => {
+        setAlertModal({ open: true, message, title: title || t("Operations.validationErrorTitle") });
+    };
+
     const selectedRoute = selectedOperation
         ? routes.find(
             (route) => route.name === selectedOperation.route
@@ -45,17 +71,14 @@ function Operations() {
         ? dailyAvailability[selectedOperation.date] || {}
         : {};
 
+    // Active vehicles are available by default unless marked "Unavailable" for that date.
     const availableVehicles = selectedOperation
         ? vehicles.filter(
             (vehicle) =>
                 vehicle.status === "Active" &&
-                selectedDateAvailability[vehicle.id] === "Available"
+                selectedDateAvailability[vehicle.id] !== "Unavailable"
         )
         : [];
-
-    const currentRoute = routes.find(
-        (route) => route.name === formData.route
-    );
 
     const allocatedVehicles = Object.values(vehicleAssignments).filter(
         Boolean
@@ -72,6 +95,39 @@ function Operations() {
         setShowForm(false);
     };
 
+    const hasSavedDistribution = (operation) =>
+        Object.keys(operation.vehicleAssignments || {}).length > 0 ||
+        Object.keys(operation.requestedStopAllocations || {}).length > 0;
+
+    const applyOperationEdit = (operationData, clearDistribution) => {
+        setOperations((prev) =>
+            prev.map((operation) => {
+                if (operation.id !== editingId) return operation;
+
+                if (!clearDistribution) {
+                    return { ...operation, ...operationData };
+                }
+
+                return {
+                    ...operation,
+                    ...operationData,
+                    status: "Pending",
+                    requestedStopAllocations: {},
+                    vehicleAssignments: {},
+                    driverAssignments: {},
+                    assignedVehicles: [],
+                    stopAllocations: [],
+                };
+            })
+        );
+
+        if (clearDistribution && selectedOperation?.id === editingId) {
+            handleCloseDistribution();
+        }
+
+        resetForm();
+    };
+
     const handleSubmit = (e) => {
         e.preventDefault();
 
@@ -84,7 +140,7 @@ function Operations() {
             !Number.isInteger(vehiclesCount) ||
             vehiclesCount <= 0
         ) {
-            alert(t("Operations.alerts.completeFields"));
+            showAlert(t("Operations.alerts.completeFields"));
             return;
         }
 
@@ -94,32 +150,60 @@ function Operations() {
         };
 
         if (editingId) {
-            setOperations((prev) =>
-                prev.map((operation) =>
-                    operation.id === editingId
-                        ? {
-                            ...operation,
-                            ...operationData,
-                        }
-                        : operation
-                )
+            const original = operations.find(
+                (operation) => operation.id === editingId
             );
-        } else {
-            setOperations((prev) => [
-                ...prev,
-                {
-                    id: Date.now(),
-                    ...operationData,
-                    status: "Pending",
-                    requestedStopAllocations: {},
-                    vehicleAssignments: {},
-                    assignedVehicles: [],
-                    stopAllocations: [],
-                },
-            ]);
+
+            if (!original) {
+                resetForm();
+                return;
+            }
+
+            const scheduleChanged =
+                original.date !== operationData.date ||
+                original.type !== operationData.type ||
+                original.route !== operationData.route ||
+                original.time !== operationData.time;
+
+            if (scheduleChanged && hasSavedDistribution(original)) {
+                setConfirmEdit({ open: true, operationData });
+                return;
+            }
+
+            if (
+                vehiclesCount <
+                Object.keys(original.vehicleAssignments || {}).length
+            ) {
+                showAlert(
+                    t("Operations.alerts.requiredVehiclesLessThanAssigned")
+                );
+                return;
+            }
+
+            applyOperationEdit(operationData, false);
+            return;
         }
 
+        setOperations((prev) => [
+            ...prev,
+            {
+                id: Date.now(),
+                ...operationData,
+                status: "Pending",
+                requestedStopAllocations: {},
+                vehicleAssignments: {},
+                driverAssignments: {},
+                assignedVehicles: [],
+                stopAllocations: [],
+            },
+        ]);
+
         resetForm();
+    };
+
+    const confirmEditAndClear = () => {
+        applyOperationEdit(confirmEdit.operationData, true);
+        setConfirmEdit({ open: false, operationData: null });
     };
 
     const handleEdit = (operation) => {
@@ -136,7 +220,11 @@ function Operations() {
     };
 
     const handleDelete = (id) => {
-        if (!window.confirm(t("Operations.alerts.deleteConfirm"))) return;
+        setConfirmDelete({ open: true, id });
+    };
+
+    const confirmDeleteOperation = () => {
+        const id = confirmDelete.id;
 
         setOperations((prev) =>
             prev.filter((operation) => operation.id !== id)
@@ -145,6 +233,8 @@ function Operations() {
         if (selectedOperation?.id === id) {
             handleCloseDistribution();
         }
+
+        setConfirmDelete({ open: false, id: null });
     };
 
     const handleOpenDistribution = (operation) => {
@@ -153,7 +243,7 @@ function Operations() {
         );
 
         if (!route) {
-            alert(t("Operations.alerts.routeNotFound"));
+            showAlert(t("Operations.alerts.routeNotFound"));
             return;
         }
 
@@ -215,7 +305,7 @@ function Operations() {
         );
 
         if (hasInvalidDemand) {
-            alert(t("Operations.alerts.enterValidStopCounts"));
+            showAlert(t("Operations.alerts.enterValidStopCounts"));
             return;
         }
 
@@ -225,7 +315,7 @@ function Operations() {
         );
 
         if (totalDemand !== selectedOperation.vehiclesCount) {
-            alert(
+            showAlert(
                 t("Operations.alerts.stopDistributionMustEqual", {
                     count: selectedOperation.vehiclesCount,
                     current: totalDemand,
@@ -242,7 +332,7 @@ function Operations() {
             }));
 
         if (assignments.length > selectedOperation.vehiclesCount) {
-            alert(t("Operations.alerts.assignedExceedRequired"));
+            showAlert(t("Operations.alerts.assignedExceedRequired"));
             return;
         }
 
@@ -255,7 +345,7 @@ function Operations() {
         );
 
         if (!allVehiclesAvailable) {
-            alert(t("Operations.alerts.vehiclesNoLongerAvailable"));
+            showAlert(t("Operations.alerts.vehiclesNoLongerAvailable"));
             return;
         }
 
@@ -268,7 +358,7 @@ function Operations() {
         );
 
         if (!allStopsValid) {
-            alert(t("Operations.alerts.selectValidStop"));
+            showAlert(t("Operations.alerts.selectValidStop"));
             return;
         }
 
@@ -287,10 +377,47 @@ function Operations() {
         );
 
         if (exceedsDemand) {
-            alert(
+            showAlert(
                 t("Operations.alerts.assignedExceedRequested")
             );
             return;
+        }
+
+        // Check every assigned vehicle against its other operations
+        // (travel times, overlaps, midnight crossings).
+        // Only vehicles whose stop changed are checked, so existing valid
+        // assignments are never blocked by unrelated data.
+        const previousAssignments = selectedOperation.vehicleAssignments || {};
+
+        for (const assignment of assignments) {
+            const unchanged =
+                Number(previousAssignments[assignment.vehicleId]) ===
+                assignment.stopId;
+
+            if (unchanged) continue;
+
+            const conflict = checkVehicleConflict({
+                vehicleId: assignment.vehicleId,
+                targetOperation: {
+                    ...selectedOperation,
+                    stopId: assignment.stopId,
+                },
+                operations,
+                travelTimes,
+                routes,
+            });
+
+            if (conflict.hasConflict) {
+                const vehicle = vehicles.find(
+                    (item) => Number(item.id) === assignment.vehicleId
+                );
+
+                showAlert(
+                    t("Operations.alerts.vehicleConflict", { vehicle: vehicle?.number || assignment.vehicleId, reason: conflict.reason }),
+                    t("Operations.vehicleConflictTitle")
+                );
+                return;
+            }
         }
 
         const allocations = selectedRoute.stops.map((stop) => ({
@@ -320,6 +447,19 @@ function Operations() {
             ])
         );
 
+        // Keep the selected driver only for vehicles still assigned
+        // to the same stop; drop drivers of removed or moved vehicles.
+        const previousDriverAssignments =
+            selectedOperation.driverAssignments || {};
+
+        const normalizedDriverAssignments = Object.fromEntries(
+            Object.entries(previousDriverAssignments).filter(
+                ([vehicleId]) =>
+                    Number(previousAssignments[vehicleId]) ===
+                    Number(normalizedAssignments[vehicleId])
+            )
+        );
+
         setOperations((prev) =>
             prev.map((operation) =>
                 operation.id === selectedOperation.id
@@ -332,6 +472,7 @@ function Operations() {
                             ])
                         ),
                         vehicleAssignments: normalizedAssignments,
+                        driverAssignments: normalizedDriverAssignments,
                         assignedVehicles: assignments.map(
                             (item) => item.vehicleId
                         ),
@@ -929,7 +1070,7 @@ function Operations() {
                                             </td>
 
                                             <td className="px-5 py-4">
-                                                {operation.time}
+                                                {formatTime12Hour(operation.time) || operation.time}
                                             </td>
 
                                             <td className="px-5 py-4">
@@ -1041,6 +1182,40 @@ function Operations() {
             <RecurringScheduleModal
                 isOpen={showRecurringModal}
                 onClose={() => setShowRecurringModal(false)}
+            />
+
+            <ConfirmModal
+                isOpen={confirmDelete.open}
+                title={t("Operations.deleteModalTitle")}
+                message={t("Operations.deleteModalMessage")}
+                confirmLabel={t("Operations.deleteModalConfirm")}
+                onConfirm={confirmDeleteOperation}
+                onCancel={() => setConfirmDelete({ open: false, id: null })}
+            />
+
+            <ConfirmModal
+                isOpen={confirmEdit.open}
+                title={t("Operations.clearDistributionTitle")}
+                message={t("Operations.clearDistributionMessage")}
+                confirmLabel={t("Operations.clearDistributionConfirm")}
+                onConfirm={confirmEditAndClear}
+                onCancel={() =>
+                    setConfirmEdit({ open: false, operationData: null })
+                }
+            />
+
+            <AlertModal
+                isOpen={alertModal.open}
+                title={alertModal.title}
+                message={alertModal.message}
+                type="warning"
+                onClose={() =>
+                    setAlertModal({
+                        open: false,
+                        message: "",
+                        title: t("Operations.validationErrorTitle"),
+                    })
+                }
             />
         </div>
     );

@@ -19,4 +19,8 @@ i18n
     interpolation: { escapeValue: false },
   });
 
+// set direction and language on first load, even before any component mounts
+document.documentElement.lang = i18n.language;
+document.documentElement.dir = i18n.language === "ar" ? "rtl" : "ltr";
+
 export default i18n;

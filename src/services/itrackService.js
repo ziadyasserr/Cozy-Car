@@ -136,7 +136,7 @@ export async function fetchDeviceList() {
 export async function fetchDeviceLocation(deviceId) {
     const token = await getToken();
     const tokenParam = token && token !== "session_active" ? `&token=${encodeURIComponent(token)}` : "";
-    const url = `${API_BASE}/LocationService?method=deviceAndGpsone&deviceid=${deviceId}${tokenParam}&_t=${Date.now()}`;
+    const url = `${API_BASE}/LocationService?method=track&deviceid=${deviceId}${tokenParam}&_t=${Date.now()}`;
 
     const response = await fetch(url, {
         credentials: "include",
@@ -151,7 +151,7 @@ export async function fetchDeviceLocation(deviceId) {
         invalidateToken();
         const freshToken = await getToken();
         const retryParam = freshToken && freshToken !== "session_active" ? `&token=${encodeURIComponent(freshToken)}` : "";
-        const retryUrl = `${API_BASE}/LocationService?method=deviceAndGpsone&deviceid=${deviceId}${retryParam}&_t=${Date.now()}`;
+        const retryUrl = `${API_BASE}/LocationService?method=track&deviceid=${deviceId}${retryParam}&_t=${Date.now()}`;
         const retryRes = await fetch(retryUrl, { credentials: "include" });
         return retryRes.json();
     }

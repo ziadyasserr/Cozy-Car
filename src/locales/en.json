@@ -119,6 +119,9 @@
     "secondShift": "Second Shift",
     "secondShiftTime": "12:00 PM - 12:00 AM",
     "singleShift": "Single Shift",
+    "fullDay": "Full Day",
+    "fullDayTime": "12:00 AM - 12:00 AM (Fixed single driver)",
+    "fullDayOption": "Full Day (12 AM - 12 AM)",
     "assignDriver": "Assign Driver",
     "vehicle": "Vehicle",
     "selectVehicle": "Select Vehicle",
@@ -217,7 +220,8 @@
       "selectDriverFirst": "Please select a driver first.",
       "driverNoLongerAvailable": "The selected driver is no longer available.",
       "assignedSuccess": "Vehicle assigned successfully.\nDriver: {{driverName}}"
-    }
+    },
+    "alerts.vehicleUnavailable": "This vehicle is marked unavailable on the Attendance date."
   },
   "OperatingAssistant": {
     "title": "Cozy Operating Assistant",
@@ -280,13 +284,23 @@
     "validationErrorTitle": "Validation Error",
     "shifts": {
       "firstShift": "First Shift (12:00 AM - 12:00 PM)",
-      "secondShift": "Second Shift (12:00 PM - 12:00 AM)"
+      "secondShift": "Second Shift (12:00 PM - 12:00 AM)",
+      "fullDay": "Full Day (24 hours)"
     },
+    "modes": {
+      "single": "Fixed - Single Driver (Full Day)",
+      "dual": "Dual - Two Drivers (12 hours each)"
+    },
+    "assignmentType": "Assignment Type",
+    "noVehiclesAvailable": "No vehicles available for this assignment type.",
+    "fixedBadge": "Fixed",
+    "dualBadge": "Dual",
     "alerts": {
       "nameRequired": "Driver name is required.",
       "nameExists": "A driver with this name already exists.",
       "selectFixedVehicle": "Please select the fixed vehicle.",
-      "shiftConflict": "This vehicle already has a fixed driver assigned to this shift. Choose the other shift."
+      "shiftConflict": "This vehicle already has a fixed driver assigned to this shift. Choose the other shift.",
+      "shiftTaken": "This vehicle already has a fixed driver assigned to this shift. Choose the other shift."
     }
   },
   "Fleet": {

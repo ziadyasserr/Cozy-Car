@@ -119,6 +119,9 @@
     "secondShift": "الوردية الثانية",
     "secondShiftTime": "12:00 م - 12:00 ص",
     "singleShift": "وردية واحدة",
+    "fullDay": "يوم كامل",
+    "fullDayTime": "12:00 ص - 12:00 ص (سائق ثابت واحد)",
+    "fullDayOption": "يوم كامل (12 ص - 12 ص)",
     "assignDriver": "تعيين سائق",
     "vehicle": "المركبة",
     "selectVehicle": "اختر المركبة",
@@ -217,7 +220,8 @@
       "selectDriverFirst": "يرجى اختيار سائق أولاً.",
       "driverNoLongerAvailable": "السائق المحدد لم يعد متاحاً.",
       "assignedSuccess": "تم تعيين المركبة بنجاح.\nالسائق: {{driverName}}"
-    }
+    },
+    "alerts.vehicleUnavailable": "هذه المركبة محددة كغير متاحة في تاريخ الحضور."
   },
   "OperatingAssistant": {
     "title": "مساعد التشغيل كوزي",
@@ -280,13 +284,23 @@
     "validationErrorTitle": "خطأ في التحقق",
     "shifts": {
       "firstShift": "الوردية الأولى (12:00 ص - 12:00 م)",
-      "secondShift": "الوردية الثانية (12:00 م - 12:00 ص)"
+      "secondShift": "الوردية الثانية (12:00 م - 12:00 ص)",
+      "fullDay": "يوم كامل (24 ساعة)"
     },
+    "modes": {
+      "single": "ثابت - سائق واحد (يوم كامل)",
+      "dual": "مزدوج - سائقان (12 ساعة لكل منهما)"
+    },
+    "assignmentType": "نوع التعيين",
+    "noVehiclesAvailable": "لا توجد مركبات متاحة لنوع التعيين هذا.",
+    "fixedBadge": "ثابت",
+    "dualBadge": "مزدوج",
     "alerts": {
       "nameRequired": "Driver name is required.",
       "nameExists": "A driver with this name already exists.",
       "selectFixedVehicle": "Please select the fixed vehicle.",
-      "shiftConflict": "This vehicle already has a fixed driver assigned to this shift. Choose the other shift."
+      "shiftConflict": "This vehicle already has a fixed driver assigned to this shift. Choose the other shift.",
+      "shiftTaken": "هذه المركبة لديها سائق ثابت معين بالفعل لهذه الوردية. اختر الوردية الأخرى."
     }
   },
   "Fleet": {

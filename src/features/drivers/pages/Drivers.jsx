@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus, Pencil, Trash2, X, Bus } from "lucide-react";
@@ -8,25 +7,51 @@ import StatCard from "../../../components/ui/StatCard";
 import ConfirmModal from "../../../components/ui/ConfirmModal";
 import AlertModal from "../../../components/ui/AlertModal";
 
+const FIXED_TYPE = "Fixed Vehicle Driver";
+const SHIFT_TYPE = "Shift Driver";
+
 const FIRST_SHIFT = "00:00-12:00";
 const SECOND_SHIFT = "12:00-00:00";
+const FULL_DAY_SHIFT = "00:00-24:00";
+
+const MODE_SINGLE = "single"; // one fixed driver, whole day -> "Fixed"
+const MODE_DUAL = "dual"; // two drivers, 12 hours each
 
 const SHIFT_OPTIONS = [
     { value: FIRST_SHIFT, labelKey: "Drivers.shifts.firstShift" },
     { value: SECOND_SHIFT, labelKey: "Drivers.shifts.secondShift" },
 ];
 
+const SHIFT_LABELS = [
+    ...SHIFT_OPTIONS,
+    { value: FULL_DAY_SHIFT, labelKey: "Drivers.shifts.fullDay" },
+];
+
+const MODE_OPTIONS = [
+    { value: MODE_SINGLE, labelKey: "Drivers.modes.single" },
+    { value: MODE_DUAL, labelKey: "Drivers.modes.dual" },
+];
+
 const emptyForm = {
     name: "",
     phone: "",
     status: "Active",
-    driverType: "Shift Driver",
+    driverType: SHIFT_TYPE,
     vehicleId: "",
-    fixedShift: FIRST_SHIFT,
+    fixedMode: MODE_SINGLE,
+    fixedShift: FULL_DAY_SHIFT,
 };
 
+// Legacy drivers (saved before fixedMode existed) follow the old rule: two drivers per vehicle.
+function getDriverMode(driver) {
+    return driver.fixedMode || MODE_DUAL;
+}
+
 function getDriverShift(driver) {
-    return driver.fixedShift || FIRST_SHIFT;
+    if (driver.fixedShift) return driver.fixedShift;
+    return getDriverMode(driver) === MODE_SINGLE
+        ? FULL_DAY_SHIFT
+        : FIRST_SHIFT;
 }
 
 function Drivers() {
@@ -49,9 +74,66 @@ function Drivers() {
 
     const [formData, setFormData] = useState(emptyForm);
 
+    const isFixedForm = formData.driverType === FIXED_TYPE;
+    const isDualForm = formData.fixedMode === MODE_DUAL;
+
+    // Fixed drivers excluding the one currently being edited
+    const otherFixedDrivers = drivers.filter(
+        (driver) => driver.driverType === FIXED_TYPE && driver.id !== editingId
+    );
+
+    const getVehicleFixedDrivers = (vehicleId) =>
+        otherFixedDrivers.filter(
+            (driver) => Number(driver.vehicleId) === Number(vehicleId)
+        );
+
+    const getFreeShifts = (vehicleId) => {
+        const takenShifts = getVehicleFixedDrivers(vehicleId).map(
+            getDriverShift
+        );
+        return SHIFT_OPTIONS.filter(
+            (option) => !takenShifts.includes(option.value)
+        );
+    };
+
+    const canSelectVehicle = (vehicleId, mode) => {
+        const vehicleDrivers = getVehicleFixedDrivers(vehicleId);
+
+        if (vehicleDrivers.length === 0) return true;
+
+        // Single (Fixed) mode needs a completely free vehicle
+        if (mode === MODE_SINGLE) return false;
+
+        // Vehicle already has a full-day fixed driver
+        if (
+            vehicleDrivers.some(
+                (driver) => getDriverMode(driver) === MODE_SINGLE
+            )
+        ) {
+            return false;
+        }
+
+        // Dual vehicle: only selectable while one shift is still free
+        return vehicleDrivers.length < 2;
+    };
+
     const activeVehicles = vehicles.filter(
         (vehicle) => vehicle.status === "Active"
     );
+
+    const editingDriver = drivers.find((driver) => driver.id === editingId);
+
+    const selectableVehicles = activeVehicles.filter(
+        (vehicle) =>
+            canSelectVehicle(vehicle.id, formData.fixedMode) ||
+            (editingDriver &&
+                Number(editingDriver.vehicleId) === Number(vehicle.id) &&
+                canSelectVehicle(vehicle.id, formData.fixedMode))
+    );
+
+    const availableShiftOptions = formData.vehicleId
+        ? getFreeShifts(formData.vehicleId)
+        : SHIFT_OPTIONS;
 
     const resetForm = () => {
         setFormData(emptyForm);
@@ -63,15 +145,40 @@ function Drivers() {
         setFormData((prev) => ({
             ...prev,
             driverType,
-            vehicleId:
-                driverType === "Fixed Vehicle Driver"
-                    ? prev.vehicleId
-                    : "",
+            vehicleId: driverType === FIXED_TYPE ? prev.vehicleId : "",
+            fixedMode: driverType === FIXED_TYPE ? prev.fixedMode : MODE_SINGLE,
             fixedShift:
-                driverType === "Fixed Vehicle Driver"
-                    ? prev.fixedShift || FIRST_SHIFT
-                    : FIRST_SHIFT,
+                driverType === FIXED_TYPE ? prev.fixedShift : FULL_DAY_SHIFT,
         }));
+    };
+
+    const handleModeChange = (mode) => {
+        setFormData((prev) => ({
+            ...prev,
+            fixedMode: mode,
+            vehicleId: "",
+            fixedShift: mode === MODE_SINGLE ? FULL_DAY_SHIFT : FIRST_SHIFT,
+        }));
+    };
+
+    const handleVehicleChange = (vehicleId) => {
+        setFormData((prev) => {
+            if (prev.fixedMode === MODE_SINGLE) {
+                return { ...prev, vehicleId, fixedShift: FULL_DAY_SHIFT };
+            }
+
+            const freeShifts = vehicleId ? getFreeShifts(vehicleId) : [];
+
+            return {
+                ...prev,
+                vehicleId,
+                fixedShift: freeShifts.some(
+                    (shift) => shift.value === prev.fixedShift
+                )
+                    ? prev.fixedShift
+                    : freeShifts[0]?.value || FIRST_SHIFT,
+            };
+        });
     };
 
     const handleSubmit = (e) => {
@@ -101,7 +208,7 @@ function Drivers() {
             return;
         }
 
-        if (formData.driverType === "Fixed Vehicle Driver") {
+        if (isFixedForm) {
             if (!formData.vehicleId) {
                 setAlertModal({
                     open: true,
@@ -110,34 +217,39 @@ function Drivers() {
                 return;
             }
 
-            const sameVehicleAndShift = drivers.some(
-                (driver) =>
-                    driver.driverType === "Fixed Vehicle Driver" &&
-                    Number(driver.vehicleId) === Number(formData.vehicleId) &&
-                    getDriverShift(driver) === formData.fixedShift &&
-                    driver.id !== editingId
-            );
-
-            if (sameVehicleAndShift) {
+            if (!canSelectVehicle(formData.vehicleId, formData.fixedMode)) {
                 setAlertModal({
                     open: true,
                     message: t("Drivers.alerts.shiftConflict"),
                 });
                 return;
             }
+
+            if (isDualForm) {
+                const shiftIsFree = getFreeShifts(formData.vehicleId).some(
+                    (shift) => shift.value === formData.fixedShift
+                );
+
+                if (!shiftIsFree) {
+                    setAlertModal({
+                        open: true,
+                        message: t("Drivers.alerts.shiftTaken"),
+                    });
+                    return;
+                }
+            }
         }
 
         const driverData = {
             ...formData,
             name: trimmedName,
-            vehicleId:
-                formData.driverType === "Fixed Vehicle Driver"
-                    ? Number(formData.vehicleId)
-                    : "",
-            fixedShift:
-                formData.driverType === "Fixed Vehicle Driver"
+            vehicleId: isFixedForm ? Number(formData.vehicleId) : "",
+            fixedMode: isFixedForm ? formData.fixedMode : "",
+            fixedShift: isFixedForm
+                ? isDualForm
                     ? formData.fixedShift
-                    : "",
+                    : FULL_DAY_SHIFT
+                : "",
         };
 
         if (editingId !== null) {
@@ -162,16 +274,16 @@ function Drivers() {
     };
 
     const handleEdit = (driver) => {
+        const isFixed = driver.driverType === FIXED_TYPE;
+
         setFormData({
             name: driver.name || "",
             phone: driver.phone || "",
             status: driver.status || "Active",
-            driverType: driver.driverType || "Shift Driver",
+            driverType: driver.driverType || SHIFT_TYPE,
             vehicleId: driver.vehicleId ? String(driver.vehicleId) : "",
-            fixedShift:
-                driver.driverType === "Fixed Vehicle Driver"
-                    ? getDriverShift(driver)
-                    : FIRST_SHIFT,
+            fixedMode: isFixed ? getDriverMode(driver) : MODE_SINGLE,
+            fixedShift: isFixed ? getDriverShift(driver) : FULL_DAY_SHIFT,
         });
 
         setEditingId(driver.id);
@@ -202,7 +314,7 @@ function Drivers() {
         );
 
     const getShiftLabel = (shift) => {
-        const option = SHIFT_OPTIONS.find((opt) => opt.value === shift);
+        const option = SHIFT_LABELS.find((opt) => opt.value === shift);
         return option ? t(option.labelKey) : "-";
     };
 
@@ -284,7 +396,7 @@ function Drivers() {
                                 value={formData.name}
                                 onChange={(e) =>
                                     setFormData((prev) => ({
-                                         ...prev,
+                                        ...prev,
                                         name: e.target.value,
                                     }))
                                 }
@@ -322,17 +434,39 @@ function Drivers() {
                                 }
                                 className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-blue-500"
                             >
-                                <option value="Shift Driver">
+                                <option value={SHIFT_TYPE}>
                                     {t("Drivers.shiftDriver")}
                                 </option>
-                                <option value="Fixed Vehicle Driver">
+                                <option value={FIXED_TYPE}>
                                     {t("Drivers.fixedVehicleDriver")}
                                 </option>
                             </select>
                         </div>
 
-                        {formData.driverType === "Fixed Vehicle Driver" && (
+                        {isFixedForm && (
                             <>
+                                <div>
+                                    <label className="mb-2 block text-sm font-medium">
+                                        {t("Drivers.assignmentType")}
+                                    </label>
+                                    <select
+                                        value={formData.fixedMode}
+                                        onChange={(e) =>
+                                            handleModeChange(e.target.value)
+                                        }
+                                        className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-blue-500"
+                                    >
+                                        {MODE_OPTIONS.map((mode) => (
+                                            <option
+                                                key={mode.value}
+                                                value={mode.value}
+                                            >
+                                                {t(mode.labelKey)}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
                                 <div>
                                     <label className="mb-2 block text-sm font-medium">
                                         {t("Drivers.fixedVehicle")}
@@ -341,10 +475,7 @@ function Drivers() {
                                         required
                                         value={formData.vehicleId}
                                         onChange={(e) =>
-                                            setFormData((prev) => ({
-                                                ...prev,
-                                                vehicleId: e.target.value,
-                                            }))
+                                            handleVehicleChange(e.target.value)
                                         }
                                         className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-blue-500"
                                     >
@@ -352,7 +483,7 @@ function Drivers() {
                                             {t("Drivers.selectFixedVehicle")}
                                         </option>
 
-                                        {activeVehicles.map((vehicle) => (
+                                        {selectableVehicles.map((vehicle) => (
                                             <option
                                                 key={vehicle.id}
                                                 value={vehicle.id}
@@ -361,31 +492,50 @@ function Drivers() {
                                             </option>
                                         ))}
                                     </select>
+
+                                    {selectableVehicles.length === 0 && (
+                                        <p className="mt-1 text-xs text-amber-600">
+                                            {t("Drivers.noVehiclesAvailable")}
+                                        </p>
+                                    )}
                                 </div>
 
                                 <div>
                                     <label className="mb-2 block text-sm font-medium">
                                         {t("Drivers.fixedShift")}
                                     </label>
-                                    <select
-                                        value={formData.fixedShift}
-                                        onChange={(e) =>
-                                            setFormData((prev) => ({
-                                                ...prev,
-                                                fixedShift: e.target.value,
-                                            }))
-                                        }
-                                        className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-blue-500"
-                                    >
-                                        {SHIFT_OPTIONS.map((shift) => (
-                                            <option
-                                                key={shift.value}
-                                                value={shift.value}
-                                            >
-                                                {t(shift.labelKey)}
-                                            </option>
-                                        ))}
-                                    </select>
+
+                                    {isDualForm ? (
+                                        <select
+                                            value={formData.fixedShift}
+                                            onChange={(e) =>
+                                                setFormData((prev) => ({
+                                                    ...prev,
+                                                    fixedShift: e.target.value,
+                                                }))
+                                            }
+                                            className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-blue-500"
+                                        >
+                                            {availableShiftOptions.map(
+                                                (shift) => (
+                                                    <option
+                                                        key={shift.value}
+                                                        value={shift.value}
+                                                    >
+                                                        {t(shift.labelKey)}
+                                                    </option>
+                                                )
+                                            )}
+                                        </select>
+                                    ) : (
+                                        <input
+                                            disabled
+                                            value={getShiftLabel(
+                                                FULL_DAY_SHIFT
+                                            )}
+                                            className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-gray-500"
+                                        />
+                                    )}
                                 </div>
                             </>
                         )}
@@ -459,12 +609,15 @@ function Drivers() {
                             ) : (
                                 drivers.map((driver) => {
                                     const isFixed =
-                                        driver.driverType ===
-                                        "Fixed Vehicle Driver";
+                                        driver.driverType === FIXED_TYPE;
 
                                     const vehicle = isFixed
                                         ? getVehicle(driver.vehicleId)
                                         : null;
+
+                                    const isSingle =
+                                        isFixed &&
+                                        getDriverMode(driver) === MODE_SINGLE;
 
                                     return (
                                         <tr
@@ -499,6 +652,17 @@ function Drivers() {
                                                         <Bus size={16} />
                                                         {vehicle?.number ||
                                                             t("Drivers.unknownVehicle")}
+                                                        <span
+                                                            className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                                                                isSingle
+                                                                    ? "bg-emerald-100 text-emerald-700"
+                                                                    : "bg-amber-100 text-amber-700"
+                                                            }`}
+                                                        >
+                                                            {isSingle
+                                                                ? t("Drivers.fixedBadge")
+                                                                : t("Drivers.dualBadge")}
+                                                        </span>
                                                     </div>
                                                 ) : (
                                                     "-"
@@ -508,8 +672,8 @@ function Drivers() {
                                             <td className="px-6 py-4 text-gray-600">
                                                 {isFixed
                                                     ? getShiftLabel(
-                                                          getDriverShift(driver)
-                                                      )
+                                                        getDriverShift(driver)
+                                                    )
                                                     : "-"}
                                             </td>
 

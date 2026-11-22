@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus, Trash2, Users, Bus, Clock } from "lucide-react";
@@ -20,9 +19,18 @@ const SECOND_SHIFT = {
     endTime: "00:00",
 };
 
+// Full day = 00:00 -> 00:00 (next day).
+// getAssignmentInterval adds 24 hours when end <= start, so this is a 24h interval.
+const FULL_DAY_SHIFT = {
+    name: "Full Day",
+    startTime: "00:00",
+    endTime: "00:00",
+};
+
 const SHIFT_TIMES = {
     "First Shift": FIRST_SHIFT,
     "Second Shift": SECOND_SHIFT,
+    "Full Day": FULL_DAY_SHIFT,
     "Single Shift": {
         name: "Single Shift",
         startTime: "",
@@ -37,6 +45,21 @@ const emptyForm = {
     startTime: FIRST_SHIFT.startTime,
     endTime: FIRST_SHIFT.endTime,
 };
+
+function isFullDay(shiftName) {
+    return shiftName === FULL_DAY_SHIFT.name;
+}
+
+function formatWorkingHours(shiftName, startTime, endTime) {
+    if (isFullDay(shiftName)) return "00:00 - 24:00";
+    return `${startTime || "--:--"} - ${endTime || "--:--"}`;
+}
+
+function endsNextDay(shiftName, startTime, endTime) {
+    if (isFullDay(shiftName)) return false;
+    if (!startTime || !endTime) return false;
+    return endTime <= startTime;
+}
 
 function getAssignmentInterval(assignment) {
     if (!assignment.date || !assignment.startTime || !assignment.endTime) {
@@ -79,6 +102,13 @@ function isFixedVehicleDriver(driver) {
 }
 
 function getFixedShift(driver) {
+    if (
+        driver?.fixedMode === "single" ||
+        driver?.fixedShift === "00:00-24:00"
+    ) {
+        return FULL_DAY_SHIFT;
+    }
+
     return driver?.fixedShift === "12:00-00:00"
         ? SECOND_SHIFT
         : FIRST_SHIFT;
@@ -268,7 +298,8 @@ export default function DriverAssignments() {
             return;
         }
 
-        if (startTime === endTime) {
+        // Full Day is stored as 00:00 -> 00:00 (24 hours), so equal times are valid for it.
+        if (startTime === endTime && !isFullDay(assignmentShift)) {
             setAlertModal({
                 open: true,
                 message: t("DriverAssignments.alerts.sameStartEndTime"),
@@ -387,7 +418,7 @@ export default function DriverAssignments() {
             </div>
 
             {/* Shift Information */}
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-3">
                 <div className="rounded-xl border border-slate-200 bg-white p-4">
                     <div className="flex items-center gap-2 font-semibold text-slate-800">
                         <Clock size={18} />
@@ -405,6 +436,16 @@ export default function DriverAssignments() {
                     </div>
                     <p className="mt-2 text-sm text-slate-600">
                         {t("DriverAssignments.secondShiftTime")}
+                    </p>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <div className="flex items-center gap-2 font-semibold text-slate-800">
+                        <Clock size={18} />
+                        {t("DriverAssignments.fullDay")}
+                    </div>
+                    <p className="mt-2 text-sm text-slate-600">
+                        {t("DriverAssignments.fullDayTime")}
                     </p>
                 </div>
             </div>
@@ -509,6 +550,13 @@ export default function DriverAssignments() {
                                 {t("DriverAssignments.secondShiftOption")}
                             </option>
 
+                            {/* Only shown for fixed single drivers (selected automatically) */}
+                            {isFullDay(form.shift) && (
+                                <option value="Full Day">
+                                    {t("DriverAssignments.fullDayOption")}
+                                </option>
+                            )}
+
                             <option value="Single Shift">
                                 {t("DriverAssignments.singleShiftOption")}
                             </option>
@@ -564,11 +612,17 @@ export default function DriverAssignments() {
                 <div className="mt-4 flex items-center gap-2 text-sm text-slate-500">
                     <Clock size={16} />
 
-                    {form.shift === "Single Shift"
-                        ? `${form.startTime || "--:--"} - ${form.endTime || "--:--"}`
-                        : `${form.startTime} - ${form.endTime}`}
+                    {formatWorkingHours(
+                        form.shift,
+                        form.startTime,
+                        form.endTime
+                    )}
 
-                    {form.endTime <= form.startTime && (
+                    {endsNextDay(
+                        form.shift,
+                        form.startTime,
+                        form.endTime
+                    ) && (
                         <span className="text-blue-600">
                             {t("DriverAssignments.endsNextDay")}
                         </span>
@@ -648,9 +702,17 @@ export default function DriverAssignments() {
                                             </td>
 
                                             <td className="p-4">
-                                                {item.startTime} - {item.endTime}
+                                                {formatWorkingHours(
+                                                    item.shift,
+                                                    item.startTime,
+                                                    item.endTime
+                                                )}
 
-                                                {item.endTime <= item.startTime && (
+                                                {endsNextDay(
+                                                    item.shift,
+                                                    item.startTime,
+                                                    item.endTime
+                                                ) && (
                                                     <span className="ml-2 text-xs text-blue-600">
                                                         {t("DriverAssignments.nextDay")}
                                                     </span>
