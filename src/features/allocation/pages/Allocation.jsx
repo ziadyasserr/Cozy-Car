@@ -1,5 +1,6 @@
 
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
     Search,
     Bus,
@@ -78,6 +79,7 @@ function formatDate(date) {
 }
 
 export default function Allocation() {
+    const { t } = useTranslation();
     const { routes } = useRoutes();
     const { vehicles } = useFleet();
     const { operations, setOperations } = useOperations();
@@ -273,7 +275,7 @@ export default function Allocation() {
 
             return {
                 assignment: {
-                    shift: shiftRange.name,
+                    shift: shiftRange.name === "Second Shift" ? t("Allocation.shifts.secondShift") : t("Allocation.shifts.firstShift"),
                     startTime: shiftRange.startTime,
                     endTime: shiftRange.endTime,
                 },
@@ -292,7 +294,7 @@ export default function Allocation() {
         if (!targetOperation) {
             return {
                 hasConflict: true,
-                reason: "Attendance operation not found.",
+                reason: t("Allocation.alerts.attendanceNotFound"),
             };
         }
 
@@ -307,7 +309,7 @@ export default function Allocation() {
         ) {
             return {
                 hasConflict: true,
-                reason: "This vehicle is already assigned to this operation.",
+                reason: t("Allocation.alerts.vehicleAlreadyAssigned"),
             };
         }
 
@@ -326,7 +328,7 @@ export default function Allocation() {
         if (assignedCount >= requestedCount) {
             return {
                 hasConflict: true,
-                reason: "This stop already has all its requested vehicles.",
+                reason: t("Allocation.alerts.stopFull"),
             };
         }
 
@@ -358,7 +360,7 @@ export default function Allocation() {
             return {
                 canAssign: false,
                 reason:
-                    "No active driver assigned to this vehicle covers the complete trip and waiting time.",
+                    t("Allocation.alerts.noDriverAvailable"),
                 availableDrivers,
             };
         }
@@ -391,7 +393,7 @@ export default function Allocation() {
         if (!targetOperation) {
             setAlertModal({
                 open: true,
-                message: "Attendance operation not found.",
+                message: t("Allocation.alerts.attendanceNotFound"),
                 type: "warning",
             });
             return;
@@ -416,7 +418,7 @@ export default function Allocation() {
         if (!selectedDriverId) {
             setAlertModal({
                 open: true,
-                message: "Please select a driver first.",
+                message: t("Allocation.alerts.selectDriverFirst"),
                 type: "warning",
             });
             return;
@@ -431,7 +433,7 @@ export default function Allocation() {
         if (!driverOption) {
             setAlertModal({
                 open: true,
-                message: "The selected driver is no longer available.",
+                message: t("Allocation.alerts.driverNoLongerAvailable"),
                 type: "warning",
             });
             return;
@@ -518,9 +520,15 @@ export default function Allocation() {
 
         setAlertModal({
             open: true,
-            message: `Vehicle assigned successfully.\nDriver: ${driverOption.driver.name}`,
+            message: t("Allocation.alerts.assignedSuccess", { driverName: driverOption.driver.name }),
             type: "info",
         });
+    };
+
+    const formatDriverShift = (shift) => {
+        if (shift === "First Shift") return t("Allocation.shifts.firstShift");
+        if (shift === "Second Shift") return t("Allocation.shifts.secondShift");
+        return shift;
     };
 
     return (
@@ -529,16 +537,16 @@ export default function Allocation() {
                 <div>
                     <div className="flex items-center gap-2">
                         <h1 className="text-2xl font-bold text-slate-800">
-                            Smart Fleet Allocation
+                            {t("Allocation.title")}
                         </h1>
 
                         <span className="rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-semibold text-indigo-800">
-                            AI Autonomous
+                            {t("Allocation.badgeAutonomous")}
                         </span>
                     </div>
 
                     <p className="mt-1 text-sm text-slate-500">
-                        Intelligently assign vehicles and drivers to minimize deadhead miles and idle time.
+                        {t("Allocation.description")}
                     </p>
                 </div>
 
@@ -548,7 +556,7 @@ export default function Allocation() {
                     className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-700 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/25 hover:from-indigo-700 hover:to-blue-700 transition active:scale-95"
                 >
                     <Zap size={18} className="text-amber-300" />
-                    Run Autonomous Allocation
+                    {t("Allocation.runAutonomous")}
                 </button>
             </div>
 
@@ -558,11 +566,11 @@ export default function Allocation() {
 
             <div className="flex items-center justify-between pt-2">
                 <h2 className="text-base font-bold text-slate-700">
-                    Manual Trip &amp; Transition Inspector
+                    {t("Allocation.manualInspectorTitle")}
                 </h2>
 
                 <span className="text-xs text-slate-400">
-                    Inspect individual vehicle arrivals and attendance pairing
+                    {t("Allocation.manualInspectorDesc")}
                 </span>
             </div>
 
@@ -570,7 +578,7 @@ export default function Allocation() {
             <div className="grid grid-cols-1 gap-4 rounded-xl border border-slate-200 bg-white p-5 md:grid-cols-2">
                 <div>
                     <label className="mb-2 block text-sm font-medium text-slate-700">
-                        Departure Operation
+                        {t("Allocation.departureOperationLabel")}
                     </label>
 
                     <select
@@ -581,7 +589,7 @@ export default function Allocation() {
                         className="w-full rounded-lg border border-slate-300 px-3 py-3 outline-none focus:border-blue-500"
                     >
                         <option value="">
-                            Select departure operation
+                            {t("Allocation.selectDepartureOperation")}
                         </option>
 
                         {departureOperations.map((operation) => (
@@ -596,14 +604,14 @@ export default function Allocation() {
 
                     {departureOperations.length === 0 && (
                         <p className="mt-2 text-xs text-amber-600">
-                            No Departure operations found. Add a Departure operation in Daily Operations first.
+                            {t("Allocation.noDepartureOperations")}
                         </p>
                     )}
                 </div>
 
                 <div>
                     <label className="mb-2 block text-sm font-medium text-slate-700">
-                        Vehicle
+                        {t("Allocation.vehicleLabel")}
                     </label>
 
                     <select
@@ -615,19 +623,19 @@ export default function Allocation() {
                         className="w-full rounded-lg border border-slate-300 px-3 py-3 outline-none focus:border-blue-500 disabled:bg-slate-100"
                     >
                         <option value="">
-                            Select vehicle
+                            {t("Allocation.selectVehicle")}
                         </option>
 
                         {assignedVehicles.map(({ id, vehicle }) => (
                             <option key={id} value={id}>
-                                {vehicle.number || vehicle.name || `Vehicle ${id}`}
+                                {vehicle.number || vehicle.name || t("Allocation.defaultVehicleName", { id })}
                             </option>
                         ))}
                     </select>
 
                     {selectedOperation && assignedVehicles.length === 0 && (
                         <p className="mt-2 text-xs text-amber-600">
-                            No vehicles distributed to this Departure operation yet. Open Daily Operations and distribute vehicles first.
+                            {t("Allocation.noVehiclesDistributed")}
                         </p>
                     )}
                 </div>
@@ -641,11 +649,11 @@ export default function Allocation() {
                     />
 
                     <h3 className="font-semibold text-slate-700">
-                        Select a departure operation
+                        {t("Allocation.emptySelectDeparture")}
                     </h3>
 
                     <p className="mt-1 text-sm text-slate-500">
-                        Choose an operation and vehicle to find attendance opportunities.
+                        {t("Allocation.emptySelectDepartureDesc")}
                     </p>
                 </div>
             )}
@@ -658,7 +666,7 @@ export default function Allocation() {
                     />
 
                     <p className="font-medium text-slate-600">
-                        Select a vehicle to continue.
+                        {t("Allocation.emptySelectVehicle")}
                     </p>
                 </div>
             )}
@@ -667,13 +675,13 @@ export default function Allocation() {
             {selectedVehicleArrival && (
                 <div className="rounded-xl border border-blue-100 bg-blue-50 p-5">
                     <h2 className="mb-4 font-semibold text-slate-800">
-                        Vehicle Current Trip
+                        {t("Allocation.currentTrip")}
                     </h2>
 
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                         <div>
                             <p className="text-xs text-slate-500">
-                                Vehicle
+                                {t("Allocation.thVehicle")}
                             </p>
 
                             <p className="mt-1 font-semibold text-slate-800">
@@ -683,7 +691,7 @@ export default function Allocation() {
 
                         <div>
                             <p className="text-xs text-slate-500">
-                                Destination
+                                {t("Allocation.destination")}
                             </p>
 
                             <p className="mt-1 font-semibold text-slate-800">
@@ -693,7 +701,7 @@ export default function Allocation() {
 
                         <div>
                             <p className="text-xs text-slate-500">
-                                Estimated Arrival
+                                {t("Allocation.estimatedArrival")}
                             </p>
 
                             <p className="mt-1 font-semibold text-blue-700">
@@ -710,11 +718,11 @@ export default function Allocation() {
                 <div className="space-y-4">
                     <div className="flex items-center justify-between">
                         <h2 className="text-lg font-bold text-slate-800">
-                            Attendance Suggestions
+                            {t("Allocation.attendanceSuggestions")}
                         </h2>
 
                         <span className="rounded-full bg-green-100 px-3 py-1 text-sm font-medium text-green-700">
-                            {results.suggestions.length} Suitable
+                            {t("Allocation.suitableCount", { count: results.suggestions.length })}
                         </span>
                     </div>
 
@@ -726,11 +734,11 @@ export default function Allocation() {
                             />
 
                             <h3 className="font-semibold text-slate-700">
-                                No suitable attendance trips found
+                                {t("Allocation.noSuitableTrips")}
                             </h3>
 
                             <p className="mt-1 text-sm text-slate-500">
-                                Check remaining requests and travel time records.
+                                {t("Allocation.noSuitableTripsDesc")}
                             </p>
                         </div>
                     )}
@@ -774,15 +782,15 @@ export default function Allocation() {
                                         }`}
                                     >
                                         {status.canAssign
-                                            ? "Available"
-                                            : "Needs attention"}
+                                            ? t("Allocation.statusAvailable")
+                                            : t("Allocation.statusNeedsAttention")}
                                     </span>
                                 </div>
 
                                 <div className="my-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
                                     <div>
                                         <p className="text-xs text-slate-500">
-                                            Current Location
+                                            {t("Allocation.currentLocation")}
                                         </p>
 
                                         <p className="mt-1 text-sm font-medium text-slate-800">
@@ -792,7 +800,7 @@ export default function Allocation() {
 
                                     <div>
                                         <p className="text-xs text-slate-500">
-                                            Estimated Arrival
+                                            {t("Allocation.estimatedArrival")}
                                         </p>
 
                                         <p className="mt-1 text-sm font-medium text-slate-800">
@@ -804,7 +812,7 @@ export default function Allocation() {
 
                                     <div>
                                         <p className="text-xs text-slate-500">
-                                            Scheduled Time
+                                            {t("Allocation.scheduledTime")}
                                         </p>
 
                                         <p className="mt-1 text-sm font-medium text-slate-800">
@@ -816,7 +824,7 @@ export default function Allocation() {
 
                                     <div>
                                         <p className="text-xs text-slate-500">
-                                            Remaining Vehicles
+                                            {t("Allocation.remainingVehicles")}
                                         </p>
 
                                         <p className="mt-1 text-sm font-medium text-slate-800">
@@ -828,19 +836,19 @@ export default function Allocation() {
                                 <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4 text-sm text-slate-600">
                                     <Clock size={16} />
 
-                                    Travel time: {suggestion.travelDuration} minutes
+                                    {t("Allocation.travelTimeText", { duration: suggestion.travelDuration })}
 
                                     <ArrowRight size={16} />
 
                                     <span className="font-medium text-green-700">
-                                        {suggestion.minutesEarly} minutes before scheduled time
+                                        {t("Allocation.minutesEarlyText", { minutes: suggestion.minutesEarly })}
                                     </span>
                                 </div>
 
                                 <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
                                     <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
                                         <UserRound size={17} />
-                                        Driver for this trip
+                                        {t("Allocation.driverForTrip")}
                                     </label>
 
                                     {status.availableDrivers.length > 0 ? (
@@ -855,7 +863,7 @@ export default function Allocation() {
                                             className="w-full rounded-lg border border-slate-300 bg-white p-3 outline-none focus:border-blue-500"
                                         >
                                             <option value="">
-                                                Select driver
+                                                {t("Allocation.selectDriver")}
                                             </option>
 
                                             {status.availableDrivers.map((item) => (
@@ -863,14 +871,14 @@ export default function Allocation() {
                                                     key={item.driver.id}
                                                     value={item.driver.id}
                                                 >
-                                                    {item.driver.name} - {item.assignment.shift}
+                                                    {item.driver.name} - {formatDriverShift(item.assignment.shift)}
                                                     ({item.assignment.startTime} - {item.assignment.endTime})
                                                 </option>
                                             ))}
                                         </select>
                                     ) : (
                                         <p className="text-sm text-red-600">
-                                            No driver assignment covers this trip and its waiting period.
+                                            {t("Allocation.noDriverCovers")}
                                         </p>
                                     )}
                                 </div>
@@ -898,7 +906,7 @@ export default function Allocation() {
                                         className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-400"
                                     >
                                         <Bus size={18} />
-                                        Assign Vehicle
+                                        {t("Allocation.assignVehicleBtn")}
                                     </button>
                                 </div>
                             </div>
@@ -913,7 +921,7 @@ export default function Allocation() {
                     <div className="rounded-xl border border-amber-200 bg-amber-50 p-5">
                         <h3 className="mb-3 flex items-center gap-2 font-semibold text-amber-800">
                             <AlertCircle size={18} />
-                            Missing Travel Time Data
+                            {t("Allocation.missingTravelTimeTitle")}
                         </h3>
 
                         <div className="space-y-2">
@@ -924,7 +932,7 @@ export default function Allocation() {
                                 >
                                     {item.fromStopName} → {item.stopName}
                                     {" — "}
-                                    No travel time recorded.
+                                    {t("Allocation.noTravelTimeRecorded")}
                                 </p>
                             ))}
                         </div>
@@ -936,7 +944,7 @@ export default function Allocation() {
                 results.lateCandidates.length > 0 && (
                     <div className="rounded-xl border border-red-200 bg-red-50 p-5">
                         <h3 className="mb-3 font-semibold text-red-800">
-                            Trips the vehicle cannot reach on time
+                            {t("Allocation.lateTripsTitle")}
                         </h3>
 
                         <div className="space-y-2">
@@ -948,9 +956,9 @@ export default function Allocation() {
                                     {item.routeName} - {item.stopName}
                                     {" — "}
                                     {formatDate(item.scheduledDate)}
-                                    {" | Estimated arrival: "}
+                                    {" | "}{t("Allocation.estimatedArrivalLabel")}{" "}
                                     {formatTime(item.estimatedArrival)}
-                                    {" / Scheduled: "}
+                                    {" / "}{t("Allocation.scheduledLabel")}{" "}
                                     {formatTime(item.scheduledTime)}
                                 </p>
                             ))}
@@ -965,7 +973,7 @@ export default function Allocation() {
 
             <AlertModal
                 isOpen={alertModal.open}
-                title="Smart Allocation"
+                title={t("Allocation.alertModalTitle")}
                 message={alertModal.message}
                 type={alertModal.type || "info"}
                 onClose={() =>

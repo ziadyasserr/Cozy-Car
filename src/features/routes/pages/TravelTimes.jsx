@@ -1,5 +1,6 @@
 
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Plus, Pencil, Trash2, X, Clock } from "lucide-react";
 import { useRoutes } from "../../../context/RoutesContext";
 import { useTravelTimes } from "../../../context/TravelTimesContext";
@@ -11,6 +12,7 @@ const emptyForm = {
 };
 
 export default function TravelTimes() {
+    const { t } = useTranslation();
     const { travelTimes, setTravelTimes } = useTravelTimes();
 
     const [showForm, setShowForm] = useState(false);
@@ -31,7 +33,7 @@ export default function TravelTimes() {
 
         return stop
             ? `${stop.name} (${stop.routeName})`
-            : "نقطة غير معروفة";
+            : t("travelTimes.unknownStop");
     };
 
     const handleChange = (e) => {
@@ -51,7 +53,7 @@ export default function TravelTimes() {
         const duration = Number(formData.duration);
 
         if (!fromId || !toId || fromId === toId || duration <= 0) {
-            alert("راجع بيانات الانتقال");
+            alert(t("travelTimes.alerts.checkData"));
             return;
         }
 
@@ -63,7 +65,7 @@ export default function TravelTimes() {
         );
 
         if (duplicate) {
-            alert("الانتقال ده متسجل بالفعل");
+            alert(t("travelTimes.alerts.duplicate"));
             return;
         }
 
@@ -108,7 +110,7 @@ export default function TravelTimes() {
     };
 
     const handleDelete = (id) => {
-        if (!window.confirm("هل أنت متأكد من حذف الانتقال؟")) return;
+        if (!window.confirm(t("travelTimes.alerts.confirmDelete"))) return;
 
         setTravelTimes((prev) =>
             prev.filter((item) => item.id !== id)
@@ -126,10 +128,10 @@ export default function TravelTimes() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-800">
-                        Travel Times
+                        {t("travelTimes.title")}
                     </h1>
                     <p className="text-gray-500 mt-1">
-                        إدارة أوقات الانتقال بين نقاط التجمع
+                        {t("travelTimes.description")}
                     </p>
                 </div>
 
@@ -138,14 +140,14 @@ export default function TravelTimes() {
                     className="flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg hover:bg-blue-700"
                 >
                     <Plus size={18} />
-                    Add Travel Time
+                    {t("travelTimes.addTravelTime")}
                 </button>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="bg-white border rounded-xl p-5">
                     <p className="text-gray-500 text-sm">
-                        Total Transfers
+                        {t("travelTimes.totalTransfers")}
                     </p>
                     <h2 className="text-3xl font-bold mt-2">
                         {travelTimes.length}
@@ -154,7 +156,7 @@ export default function TravelTimes() {
 
                 <div className="bg-white border rounded-xl p-5">
                     <p className="text-gray-500 text-sm">
-                        Available Stops
+                        {t("travelTimes.availableStops")}
                     </p>
                     <h2 className="text-3xl font-bold mt-2">
                         {stops.length}
@@ -167,8 +169,8 @@ export default function TravelTimes() {
                     <div className="flex justify-between items-center mb-5">
                         <h2 className="font-bold text-lg">
                             {editingId !== null
-                                ? "Edit Travel Time"
-                                : "Add Travel Time"}
+                                ? t("travelTimes.editTravelTime")
+                                : t("travelTimes.addTravelTime")}
                         </h2>
 
                         <button onClick={handleCloseForm}>
@@ -180,7 +182,7 @@ export default function TravelTimes() {
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
                                 <label className="block text-sm mb-2">
-                                    From Stop
+                                    {t("travelTimes.fromStop")}
                                 </label>
 
                                 <select
@@ -190,7 +192,7 @@ export default function TravelTimes() {
                                     required
                                     className="w-full border rounded-lg p-3"
                                 >
-                                    <option value="">Choose start point</option>
+                                    <option value="">{t("travelTimes.chooseStartPoint")}</option>
 
                                     {stops.map((stop) => (
                                         <option key={stop.id} value={stop.id}>
@@ -202,7 +204,7 @@ export default function TravelTimes() {
 
                             <div>
                                 <label className="block text-sm mb-2">
-                                    To Stop
+                                    {t("travelTimes.toStop")}
                                 </label>
 
                                 <select
@@ -212,7 +214,7 @@ export default function TravelTimes() {
                                     required
                                     className="w-full border rounded-lg p-3"
                                 >
-                                    <option value="">Choose destination</option>
+                                    <option value="">{t("travelTimes.chooseDestination")}</option>
 
                                     {stops.map((stop) => (
                                         <option key={stop.id} value={stop.id}>
@@ -224,7 +226,7 @@ export default function TravelTimes() {
 
                             <div>
                                 <label className="block text-sm mb-2">
-                                    Duration (Minutes)
+                                    {t("travelTimes.durationMinutes")}
                                 </label>
 
                                 <input
@@ -234,7 +236,7 @@ export default function TravelTimes() {
                                     value={formData.duration}
                                     onChange={handleChange}
                                     required
-                                    placeholder="Example: 25"
+                                    placeholder={t("travelTimes.durationPlaceholder")}
                                     className="w-full border rounded-lg p-3"
                                 />
                             </div>
@@ -245,7 +247,7 @@ export default function TravelTimes() {
                                 type="submit"
                                 className="bg-blue-600 text-white px-5 py-2.5 rounded-lg"
                             >
-                                Save
+                                {t("travelTimes.save")}
                             </button>
 
                             <button
@@ -253,7 +255,7 @@ export default function TravelTimes() {
                                 onClick={handleCloseForm}
                                 className="border px-5 py-2.5 rounded-lg"
                             >
-                                Cancel
+                                {t("travelTimes.cancel")}
                             </button>
                         </div>
                     </form>
@@ -262,23 +264,23 @@ export default function TravelTimes() {
 
             <div className="bg-white border rounded-xl overflow-hidden">
                 <div className="p-5 border-b">
-                    <h2 className="font-bold">Transfer List</h2>
+                    <h2 className="font-bold">{t("travelTimes.transferList")}</h2>
                 </div>
 
                 {travelTimes.length === 0 ? (
                     <div className="text-center py-12 text-gray-500">
                         <Clock size={36} className="mx-auto mb-3 text-gray-400" />
-                        <p>No travel times added yet</p>
+                        <p>{t("travelTimes.noTravelTimesAdded")}</p>
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead className="bg-gray-50 text-gray-600">
                                 <tr>
-                                    <th className="p-4 text-right">From</th>
-                                    <th className="p-4 text-right">To</th>
-                                    <th className="p-4 text-right">Duration</th>
-                                    <th className="p-4 text-center">Actions</th>
+                                    <th className="p-4 text-right">{t("travelTimes.from")}</th>
+                                    <th className="p-4 text-right">{t("travelTimes.to")}</th>
+                                    <th className="p-4 text-right">{t("travelTimes.duration")}</th>
+                                    <th className="p-4 text-center">{t("travelTimes.actions")}</th>
                                 </tr>
                             </thead>
 
@@ -294,7 +296,7 @@ export default function TravelTimes() {
                                         </td>
 
                                         <td className="p-4 font-semibold">
-                                            {item.duration} min
+                                            {t("travelTimes.minutesShort", { duration: item.duration })}
                                         </td>
 
                                         <td className="p-4">

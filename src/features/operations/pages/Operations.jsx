@@ -1,5 +1,6 @@
 
 import { useState } from "react";
+import { useTranslation, Trans } from "react-i18next";
 import { Plus, Trash2, Pencil, X, Clock, Sparkles } from "lucide-react";
 
 import { useFleet } from "../../../context/FleetContext";
@@ -17,6 +18,7 @@ const emptyForm = {
 };
 
 function Operations() {
+    const { t } = useTranslation();
     const { operations, setOperations } = useOperations();
     const { vehicles, dailyAvailability } = useFleet();
     const { routes } = useRoutes();
@@ -82,7 +84,7 @@ function Operations() {
             !Number.isInteger(vehiclesCount) ||
             vehiclesCount <= 0
         ) {
-            alert("Please complete all fields correctly.");
+            alert(t("Operations.alerts.completeFields"));
             return;
         }
 
@@ -134,7 +136,7 @@ function Operations() {
     };
 
     const handleDelete = (id) => {
-        if (!window.confirm("Delete this operation?")) return;
+        if (!window.confirm(t("Operations.alerts.deleteConfirm"))) return;
 
         setOperations((prev) =>
             prev.filter((operation) => operation.id !== id)
@@ -151,7 +153,7 @@ function Operations() {
         );
 
         if (!route) {
-            alert("Route not found.");
+            alert(t("Operations.alerts.routeNotFound"));
             return;
         }
 
@@ -213,7 +215,7 @@ function Operations() {
         );
 
         if (hasInvalidDemand) {
-            alert("Please enter valid vehicle counts for every stop.");
+            alert(t("Operations.alerts.enterValidStopCounts"));
             return;
         }
 
@@ -224,7 +226,10 @@ function Operations() {
 
         if (totalDemand !== selectedOperation.vehiclesCount) {
             alert(
-                `The stop distribution must equal ${selectedOperation.vehiclesCount} vehicles. Currently: ${totalDemand}.`
+                t("Operations.alerts.stopDistributionMustEqual", {
+                    count: selectedOperation.vehiclesCount,
+                    current: totalDemand,
+                })
             );
             return;
         }
@@ -237,7 +242,7 @@ function Operations() {
             }));
 
         if (assignments.length > selectedOperation.vehiclesCount) {
-            alert("Assigned vehicles cannot exceed required vehicles.");
+            alert(t("Operations.alerts.assignedExceedRequired"));
             return;
         }
 
@@ -250,7 +255,7 @@ function Operations() {
         );
 
         if (!allVehiclesAvailable) {
-            alert("Some selected vehicles are no longer available.");
+            alert(t("Operations.alerts.vehiclesNoLongerAvailable"));
             return;
         }
 
@@ -263,7 +268,7 @@ function Operations() {
         );
 
         if (!allStopsValid) {
-            alert("Please select a valid stop for every vehicle.");
+            alert(t("Operations.alerts.selectValidStop"));
             return;
         }
 
@@ -283,7 +288,7 @@ function Operations() {
 
         if (exceedsDemand) {
             alert(
-                "Assigned vehicles cannot exceed the requested vehicles for a stop."
+                t("Operations.alerts.assignedExceedRequested")
             );
             return;
         }
@@ -361,6 +366,30 @@ function Operations() {
         return "bg-yellow-100 text-yellow-700";
     };
 
+    const getStatusLabel = (status) => {
+        if (status === "Distributed") {
+            return t("Operations.statusDistributed");
+        }
+
+        if (status === "Partially Distributed") {
+            return t("Operations.statusPartiallyDistributed");
+        }
+
+        return t("Operations.statusPending");
+    };
+
+    const getTypeLabel = (type) => {
+        if (type === "Attendance") {
+            return t("Operations.attendance");
+        }
+
+        if (type === "Departure") {
+            return t("Operations.departure");
+        }
+
+        return type;
+    };
+
     return (
         <div className="space-y-6">
             {/* Page Header */}
@@ -368,15 +397,15 @@ function Operations() {
                 <div>
                     <div className="flex items-center gap-2">
                         <h1 className="text-2xl font-bold text-gray-800">
-                            Daily Operations
+                            {t("Operations.title")}
                         </h1>
                         <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-800">
-                            AI Guided
+                            {t("Operations.aiGuided")}
                         </span>
                     </div>
 
                     <p className="mt-1 text-sm text-gray-500">
-                        Manage daily attendance and departure requests with smart recommendations
+                        {t("Operations.description")}
                     </p>
                 </div>
 
@@ -386,7 +415,7 @@ function Operations() {
                         className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-blue-500/20 hover:from-blue-700 hover:to-indigo-700 transition active:scale-95"
                     >
                         <Sparkles size={16} className="text-amber-300" />
-                        Intelligent Daily Scheduler
+                        {t("Operations.intelligentDailyScheduler")}
                     </button>
 
                     <button
@@ -394,7 +423,7 @@ function Operations() {
                         className="flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition active:scale-95"
                     >
                         <Plus size={18} />
-                        Add Operation
+                        {t("Operations.addOperation")}
                     </button>
                 </div>
             </div>
@@ -407,17 +436,17 @@ function Operations() {
             {/* Statistics */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <StatCard
-                    title="Total Operations"
+                    title={t("Operations.totalOperations")}
                     value={filteredOperations.length}
                 />
 
                 <StatCard
-                    title="Required Vehicles"
+                    title={t("Operations.requiredVehicles")}
                     value={totalVehicles}
                 />
 
                 <StatCard
-                    title="Pending Distribution"
+                    title={t("Operations.pendingDistribution")}
                     value={
                         filteredOperations.filter(
                             (operation) => operation.status !== "Distributed"
@@ -434,7 +463,7 @@ function Operations() {
                 >
                     <div className="mb-5 flex items-center justify-between">
                         <h2 className="text-lg font-semibold text-gray-800">
-                            {editingId ? "Edit Operation" : "Add New Operation"}
+                            {editingId ? t("Operations.editOperation") : t("Operations.addNewOperation")}
                         </h2>
 
                         <button type="button" onClick={resetForm}>
@@ -443,7 +472,7 @@ function Operations() {
                     </div>
 
                     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                        <FormField label="Operation Date">
+                        <FormField label={t("Operations.operationDate")}>
                             <input
                                 type="date"
                                 required
@@ -458,7 +487,7 @@ function Operations() {
                             />
                         </FormField>
 
-                        <FormField label="Operation Type">
+                        <FormField label={t("Operations.operationType")}>
                             <select
                                 value={formData.type}
                                 onChange={(e) =>
@@ -469,12 +498,12 @@ function Operations() {
                                 }
                                 className="form-input"
                             >
-                                <option value="Attendance">Attendance</option>
-                                <option value="Departure">Departure</option>
+                                <option value="Attendance">{t("Operations.attendance")}</option>
+                                <option value="Departure">{t("Operations.departure")}</option>
                             </select>
                         </FormField>
 
-                        <FormField label="Route">
+                        <FormField label={t("Operations.route")}>
                             <select
                                 value={formData.route}
                                 onChange={(e) =>
@@ -493,7 +522,7 @@ function Operations() {
                             </select>
                         </FormField>
 
-                        <FormField label="Scheduled Time">
+                        <FormField label={t("Operations.scheduledTime")}>
                             <input
                                 type="time"
                                 required
@@ -509,12 +538,12 @@ function Operations() {
 
                             <p className="mt-1 text-xs text-gray-500">
                                 {formData.type === "Attendance"
-                                    ? "Time when the vehicle should be at the stop."
-                                    : "Time when the vehicle leaves the company."}
+                                    ? t("Operations.attendanceTimeHelp")
+                                    : t("Operations.departureTimeHelp")}
                             </p>
                         </FormField>
 
-                        <FormField label="Required Vehicles">
+                        <FormField label={t("Operations.requiredVehicles")}>
                             <input
                                 type="number"
                                 min="1"
@@ -528,7 +557,7 @@ function Operations() {
                                     })
                                 }
                                 className="form-input"
-                                placeholder="Enter number of vehicles"
+                                placeholder={t("Operations.vehiclesPlaceholder")}
                             />
                         </FormField>
                     </div>
@@ -538,7 +567,7 @@ function Operations() {
                             type="submit"
                             className="rounded-lg bg-blue-600 px-5 py-2 text-white"
                         >
-                            {editingId ? "Save Changes" : "Add Operation"}
+                            {editingId ? t("Operations.saveChanges") : t("Operations.addOperation")}
                         </button>
 
                         <button
@@ -546,7 +575,7 @@ function Operations() {
                             onClick={resetForm}
                             className="rounded-lg bg-gray-100 px-5 py-2 text-gray-700"
                         >
-                            Cancel
+                            {t("Operations.cancel")}
                         </button>
                     </div>
                 </form>
@@ -558,12 +587,12 @@ function Operations() {
                     <div className="mb-5 flex items-center justify-between">
                         <div>
                             <h2 className="text-lg font-semibold text-gray-800">
-                                Operation Distribution
+                                {t("Operations.distributionTitle")}
                             </h2>
 
                             <p className="mt-1 text-sm text-gray-500">
                                 {selectedOperation.route} -{" "}
-                                {selectedOperation.type}
+                                {getTypeLabel(selectedOperation.type)}
                             </p>
                         </div>
 
@@ -579,7 +608,7 @@ function Operations() {
                     <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
                         <div className="rounded-lg bg-blue-50 p-4">
                             <p className="text-sm text-gray-500">
-                                Required Vehicles
+                                {t("Operations.requiredVehicles")}
                             </p>
                             <p className="mt-1 text-2xl font-bold text-blue-700">
                                 {selectedOperation.vehiclesCount}
@@ -588,7 +617,7 @@ function Operations() {
 
                         <div className="rounded-lg bg-green-50 p-4">
                             <p className="text-sm text-gray-500">
-                                Assigned Vehicles
+                                {t("Operations.assignedVehicles")}
                             </p>
                             <p className="mt-1 text-2xl font-bold text-green-700">
                                 {allocatedVehicles}
@@ -597,7 +626,7 @@ function Operations() {
 
                         <div className="rounded-lg bg-orange-50 p-4">
                             <p className="text-sm text-gray-500">
-                                Remaining Vehicles
+                                {t("Operations.remainingVehicles")}
                             </p>
                             <p className="mt-1 text-2xl font-bold text-orange-700">
                                 {selectedOperation.vehiclesCount - allocatedVehicles}
@@ -608,12 +637,11 @@ function Operations() {
                     {/* Requested Distribution */}
                     <div className="mb-8">
                         <h3 className="font-semibold text-gray-800">
-                            1. Requested Distribution
+                            {t("Operations.requestedDistributionTitle")}
                         </h3>
 
                         <p className="mb-4 mt-1 text-sm text-gray-500">
-                            Enter how many vehicles are required at each stop.
-                            The total must equal the operation request.
+                            {t("Operations.requestedDistributionDesc")}
                         </p>
 
                         <div className="space-y-3">
@@ -641,7 +669,7 @@ function Operations() {
 
                                         <div>
                                             <label className="mb-1 block text-xs text-gray-500">
-                                                Required vehicles
+                                                {t("Operations.requiredVehicles")}
                                             </label>
 
                                             <input
@@ -661,17 +689,23 @@ function Operations() {
 
                                         <div className="text-sm">
                                             <p className="text-gray-500">
-                                                Assigned:{" "}
-                                                <strong className="text-gray-800">
-                                                    {assigned}
-                                                </strong>
+                                                <Trans
+                                                    i18nKey="Operations.assignedCount"
+                                                    values={{ count: assigned }}
+                                                    components={{
+                                                        strong: <strong className="text-gray-800" />
+                                                    }}
+                                                />
                                             </p>
 
                                             <p className="text-gray-500">
-                                                Remaining:{" "}
-                                                <strong className="text-orange-600">
-                                                    {Math.max(requested - assigned, 0)}
-                                                </strong>
+                                                <Trans
+                                                    i18nKey="Operations.remainingCount"
+                                                    values={{ count: Math.max(requested - assigned, 0) }}
+                                                    components={{
+                                                        strong: <strong className="text-orange-600" />
+                                                    }}
+                                                />
                                             </p>
                                         </div>
                                     </div>
@@ -681,7 +715,7 @@ function Operations() {
 
                         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-gray-50 p-4">
                             <span className="font-medium text-gray-700">
-                                Requested total
+                                {t("Operations.requestedTotal")}
                             </span>
 
                             <span
@@ -699,18 +733,16 @@ function Operations() {
                     {/* Actual Vehicle Assignments */}
                     <div>
                         <h3 className="font-semibold text-gray-800">
-                            2. Actual Vehicle Assignments
+                            {t("Operations.actualAssignmentsTitle")}
                         </h3>
 
                         <p className="mb-4 mt-1 text-sm text-gray-500">
-                            Assign available vehicles to the requested stops.
-                            You can save a partial distribution.
+                            {t("Operations.actualAssignmentsDesc")}
                         </p>
 
                         {availableVehicles.length === 0 ? (
                             <p className="rounded-lg bg-yellow-50 p-4 text-sm text-yellow-700">
-                                No vehicles available for this date.
-                                Check Daily Availability in Fleet.
+                                {t("Operations.noVehiclesAvailable")}
                             </p>
                         ) : (
                             <div className="space-y-3">
@@ -740,7 +772,7 @@ function Operations() {
                                             className="min-w-48 rounded-lg border border-gray-300 px-3 py-2"
                                         >
                                             <option value="">
-                                                Not Assigned
+                                                {t("Operations.notAssigned")}
                                             </option>
 
                                             {selectedRoute?.stops.map((stop) => {
@@ -788,21 +820,21 @@ function Operations() {
                     <div className="mt-6 space-y-2 rounded-lg bg-gray-50 p-4">
                         <div className="flex justify-between text-sm">
                             <span className="text-gray-600">
-                                Requested vehicles
+                                {t("Operations.requestedVehicles")}
                             </span>
                             <strong>{requestedTotal}</strong>
                         </div>
 
                         <div className="flex justify-between text-sm">
                             <span className="text-gray-600">
-                                Assigned vehicles
+                                {t("Operations.assignedVehicles")}
                             </span>
                             <strong>{allocatedVehicles}</strong>
                         </div>
 
                         <div className="flex justify-between text-sm">
                             <span className="text-gray-600">
-                                Not assigned yet
+                                {t("Operations.notAssignedYet")}
                             </span>
                             <strong className="text-orange-600">
                                 {Math.max(
@@ -815,15 +847,14 @@ function Operations() {
 
                     <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
                         <p className="text-sm text-gray-500">
-                            You can save the requested distribution even if
-                            some vehicles are not assigned yet.
+                            {t("Operations.saveDistributionHint")}
                         </p>
 
                         <button
                             onClick={handleSaveDistribution}
                             className="rounded-lg bg-blue-600 px-5 py-2 text-white hover:bg-blue-700"
                         >
-                            Save Distribution
+                            {t("Operations.saveDistribution")}
                         </button>
                     </div>
                 </div>
@@ -833,7 +864,7 @@ function Operations() {
             <div className="rounded-xl border border-gray-200 bg-white">
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 p-5">
                     <h2 className="font-bold text-gray-800">
-                        Operations Schedule
+                        {t("Operations.scheduleTitle")}
                     </h2>
 
                     <select
@@ -841,9 +872,9 @@ function Operations() {
                         onChange={(e) => setFilter(e.target.value)}
                         className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
                     >
-                        <option value="All">All Operations</option>
-                        <option value="Attendance">Attendance</option>
-                        <option value="Departure">Departure</option>
+                        <option value="All">{t("Operations.allOperations")}</option>
+                        <option value="Attendance">{t("Operations.attendance")}</option>
+                        <option value="Departure">{t("Operations.departure")}</option>
                     </select>
                 </div>
 
@@ -851,13 +882,13 @@ function Operations() {
                     <table className="w-full text-left">
                         <thead className="bg-gray-50 text-sm text-gray-600">
                             <tr>
-                                <th className="px-5 py-4">Date</th>
-                                <th className="px-5 py-4">Type</th>
-                                <th className="px-5 py-4">Route</th>
-                                <th className="px-5 py-4">Time</th>
-                                <th className="px-5 py-4">Requested / Assigned</th>
-                                <th className="px-5 py-4">Status</th>
-                                <th className="px-5 py-4">Actions</th>
+                                <th className="px-5 py-4">{t("Operations.thDate")}</th>
+                                <th className="px-5 py-4">{t("Operations.thType")}</th>
+                                <th className="px-5 py-4">{t("Operations.thRoute")}</th>
+                                <th className="px-5 py-4">{t("Operations.thTime")}</th>
+                                <th className="px-5 py-4">{t("Operations.thRequestedAssigned")}</th>
+                                <th className="px-5 py-4">{t("Operations.thStatus")}</th>
+                                <th className="px-5 py-4">{t("Operations.thActions")}</th>
                             </tr>
                         </thead>
 
@@ -868,7 +899,7 @@ function Operations() {
                                         colSpan="7"
                                         className="py-10 text-center text-gray-500"
                                     >
-                                        No operations added yet
+                                        {t("Operations.noOperations")}
                                     </td>
                                 </tr>
                             ) : (
@@ -890,7 +921,7 @@ function Operations() {
                                             </td>
 
                                             <td className="px-5 py-4">
-                                                {operation.type}
+                                                {getTypeLabel(operation.type)}
                                             </td>
 
                                             <td className="px-5 py-4 font-medium">
@@ -966,7 +997,7 @@ function Operations() {
                                                         operation.status
                                                     )}`}
                                                 >
-                                                    {operation.status}
+                                                    {getStatusLabel(operation.status)}
                                                 </span>
                                             </td>
 
@@ -978,13 +1009,13 @@ function Operations() {
                                                         }
                                                         className="text-sm font-medium text-green-600 hover:text-green-700"
                                                     >
-                                                        Distribute
+                                                        {t("Operations.distribute")}
                                                     </button>
 
                                                     <button
                                                         onClick={() => handleEdit(operation)}
                                                         className="text-blue-600"
-                                                        aria-label="Edit operation"
+                                                        aria-label={t("Operations.editOperationAria")}
                                                     >
                                                         <Pencil size={17} />
                                                     </button>
@@ -992,7 +1023,7 @@ function Operations() {
                                                     <button
                                                         onClick={() => handleDelete(operation.id)}
                                                         className="text-red-600"
-                                                        aria-label="Delete operation"
+                                                        aria-label={t("Operations.deleteOperationAria")}
                                                     >
                                                         <Trash2 size={17} />
                                                     </button>

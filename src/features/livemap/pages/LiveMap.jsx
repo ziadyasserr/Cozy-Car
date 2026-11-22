@@ -5,16 +5,17 @@ import {
 } from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { useTranslation } from "react-i18next";
 import { useGPS } from "../../../context/GPSContext";
 import { useFleet } from "../../../context/FleetContext";
 import { Link } from "react-router-dom";
 
 const STATUS_CONFIG = {
-    Online:          { color: "#10b981", bg: "bg-emerald-100 text-emerald-800", label: "Online",   icon: Wifi },
-    Stale:           { color: "#f59e0b", bg: "bg-amber-100 text-amber-800",     label: "Stale",    icon: Clock },
-    Offline:         { color: "#ef4444", bg: "bg-red-100 text-red-800",         label: "Offline",  icon: WifiOff },
-    "No GPS":        { color: "#6b7280", bg: "bg-slate-100 text-slate-600",     label: "No GPS",   icon: AlertCircle },
-    "No Credentials":{ color: "#6b7280", bg: "bg-slate-100 text-slate-600",     label: "Not Set",  icon: Settings },
+    Online:          { color: "#10b981", bg: "bg-emerald-100 text-emerald-800", labelKey: "Online",   icon: Wifi },
+    Stale:           { color: "#f59e0b", bg: "bg-amber-100 text-amber-800",     labelKey: "Stale",    icon: Clock },
+    Offline:         { color: "#ef4444", bg: "bg-red-100 text-red-800",         labelKey: "Offline",  icon: WifiOff },
+    "No GPS":        { color: "#6b7280", bg: "bg-slate-100 text-slate-600",     labelKey: "No GPS",   icon: AlertCircle },
+    "No Credentials":{ color: "#6b7280", bg: "bg-slate-100 text-slate-600",     labelKey: "Not Set",  icon: Settings },
 };
 
 // ── Bounds for Cairo, Giza, and Qalyubia only ───────────────────────────────
@@ -109,8 +110,8 @@ function createBranchIcon(branch) {
 }
 
 /** Build a compact, readable marker for Leaflet with a small directional arrow and vehicle name */
-function createVehicleIcon(vehicle, gps, color) {
-    const displayName = gps?.raw?.devicename || vehicle?.number || "Car";
+function createVehicleIcon(vehicle, gps, color, defaultCarLabel) {
+    const displayName = gps?.raw?.devicename || vehicle?.number || defaultCarLabel || "Car";
     const moving = Boolean(gps?.moving);
     const heading = Number(gps?.course || 0);
     const speed = Math.round(Number(gps?.speed || 0));
@@ -191,17 +192,19 @@ function createVehicleIcon(vehicle, gps, color) {
 }
 
 function StatusBadge({ status }) {
+    const { t } = useTranslation();
     const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.Offline;
     const Icon = cfg.icon;
     return (
         <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${cfg.bg}`}>
             <Icon size={11} />
-            {cfg.label}
+            {t(`LiveMap.statuses.${cfg.labelKey}`)}
         </span>
     );
 }
 
 function VehiclePanel({ vehicle, gps, onFocus }) {
+    const { t } = useTranslation();
     const cfg = STATUS_CONFIG[gps?.status] || STATUS_CONFIG.Offline;
     return (
         <button
@@ -228,24 +231,24 @@ function VehiclePanel({ vehicle, gps, onFocus }) {
                 <div className="mt-2 grid grid-cols-2 gap-1.5 text-[11px]">
                     <div className="flex items-center gap-1 text-slate-600">
                         <Gauge size={11} className="text-blue-500" />
-                        <span>{gps.speed} km/h</span>
+                        <span>{t("LiveMap.speedKmH", { speed: gps.speed })}</span>
                     </div>
                     <div className="flex items-center gap-1 text-slate-600">
                         <Navigation size={11} className="text-indigo-500" />
-                        <span>{gps.course}°</span>
+                        <span>{t("LiveMap.courseDeg", { course: gps.course })}</span>
                     </div>
                     <div className="col-span-2 flex items-center gap-1 text-slate-500">
                         <Zap size={11} className={gps.ignition ? "text-emerald-500" : "text-slate-400"} />
-                        <span>{gps.ignition ? "Ignition ON" : "Ignition OFF"}</span>
+                        <span>{gps.ignition ? t("LiveMap.ignitionOn") : t("LiveMap.ignitionOff")}</span>
                         {gps.moving && (
                             <span className="ml-auto rounded-full bg-blue-50 px-1.5 py-px text-blue-700 font-semibold">
-                                Moving
+                                {t("LiveMap.movingBadge")}
                             </span>
                         )}
                     </div>
                     {gps.gpsTime && (
                         <div className="col-span-2 text-slate-400 text-[10px]">
-                            Last fix: {new Date(gps.gpsTime).toLocaleTimeString()}
+                            {t("LiveMap.lastFix", { time: new Date(gps.gpsTime).toLocaleTimeString() })}
                         </div>
                     )}
                 </div>
@@ -255,6 +258,7 @@ function VehiclePanel({ vehicle, gps, onFocus }) {
 }
 
 export default function LiveMap() {
+    const { t } = useTranslation();
     const { gpsData, systemStatus, lastSyncTime, errorMessage, refresh, trackedCount, totalVehicles } = useGPS();
     const { vehicles } = useFleet();
 
@@ -268,10 +272,23 @@ export default function LiveMap() {
     const hasInitialFit = useRef(false);
 
     // ── Build popup HTML ─────────────────────────────────────────────────────
-    function buildPopupContent(vehicle, gps) {
+    const buildPopupContent = useCallback((vehicle, gps) => {
         const cfg = STATUS_CONFIG[gps?.status] || STATUS_CONFIG.Offline;
         const lastFix = gps?.gpsTime ? new Date(gps.gpsTime).toLocaleString() : "—";
-        const displayName = gps?.raw?.devicename || `Vehicle #${vehicle.number}`;
+        const displayName = gps?.raw?.devicename || t("LiveMap.vehicleDefaultName", { number: vehicle.number });
+        const statusLabel = t(`LiveMap.statuses.${cfg.labelKey}`);
+        const speedLabel = t("LiveMap.speed");
+        const speedVal = t("LiveMap.speedKmH", { speed: gps?.speed || 0 });
+        const headingLabel = t("LiveMap.heading");
+        const headingVal = t("LiveMap.courseDeg", { course: gps?.course || 0 });
+        const ignitionLabel = t("LiveMap.ignition");
+        const ignitionVal = gps?.ignition ? t("LiveMap.ignitionOnVal") : t("LiveMap.ignitionOffVal");
+        const movementLabel = t("LiveMap.movement");
+        const movementVal = gps?.moving ? t("LiveMap.movingVal") : t("LiveMap.stoppedVal");
+        const lastFixLabel = t("LiveMap.lastFix", { time: "" }).replace(/:\s*$/, "") || "Last fix";
+        const coordinatesLabel = t("LiveMap.coordinates");
+        const coordsVal = `${gps?.lat?.toFixed(5) || 0}, ${gps?.lng?.toFixed(5) || 0}`;
+
         return `
             <div style="font-family:sans-serif;font-size:12px;min-width:190px;padding:2px">
                 <div style="font-weight:700;font-size:14px;margin-bottom:4px;color:#1e293b;direction:rtl;text-align:right">
@@ -280,19 +297,19 @@ export default function LiveMap() {
                 </div>
                 <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
                     <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${cfg.color}"></span>
-                    <span style="font-size:11px;font-weight:600">${gps?.status || "Offline"}</span>
+                    <span style="font-size:11px;font-weight:600">${statusLabel}</span>
                 </div>
                 <table style="width:100%;border-collapse:collapse;font-size:11px">
-                    <tr><td style="color:#64748b;padding:2px 0">Speed</td><td style="font-weight:600;text-align:right">${gps?.speed || 0} km/h</td></tr>
-                    <tr><td style="color:#64748b;padding:2px 0">Heading</td><td style="font-weight:600;text-align:right">${gps?.course || 0}°</td></tr>
-                    <tr><td style="color:#64748b;padding:2px 0">Ignition</td><td style="font-weight:600;text-align:right">${gps?.ignition ? "🟢 ON" : "⚪ OFF"}</td></tr>
-                    <tr><td style="color:#64748b;padding:2px 0">Movement</td><td style="font-weight:600;text-align:right">${gps?.moving ? "Moving" : "Stopped"}</td></tr>
-                    <tr><td style="color:#64748b;padding:2px 0">Last fix</td><td style="font-weight:600;text-align:right">${lastFix}</td></tr>
-                    <tr><td style="color:#64748b;padding:2px 0">Coordinates</td><td style="font-weight:600;text-align:right">${gps?.lat?.toFixed(5) || 0}, ${gps?.lng?.toFixed(5) || 0}</td></tr>
+                    <tr><td style="color:#64748b;padding:2px 0">${speedLabel}</td><td style="font-weight:600;text-align:right">${speedVal}</td></tr>
+                    <tr><td style="color:#64748b;padding:2px 0">${headingLabel}</td><td style="font-weight:600;text-align:right">${headingVal}</td></tr>
+                    <tr><td style="color:#64748b;padding:2px 0">${ignitionLabel}</td><td style="font-weight:600;text-align:right">${ignitionVal}</td></tr>
+                    <tr><td style="color:#64748b;padding:2px 0">${movementLabel}</td><td style="font-weight:600;text-align:right">${movementVal}</td></tr>
+                    <tr><td style="color:#64748b;padding:2px 0">${lastFixLabel}</td><td style="font-weight:600;text-align:right">${lastFix}</td></tr>
+                    <tr><td style="color:#64748b;padding:2px 0">${coordinatesLabel}</td><td style="font-weight:600;text-align:right">${coordsVal}</td></tr>
                 </table>
             </div>
         `;
-    }
+    }, [t]);
 
     // ── Initialise Leaflet Map (Restricted strictly to Cairo, Giza, and Qalyubia) ─────────
     useEffect(() => {
@@ -332,7 +349,7 @@ export default function LiveMap() {
                         ${branch.address}
                     </div>
                     <div style="display:inline-block;padding:2px 8px;border-radius:9999px;font-size:10px;font-weight:700;background:${branch.color}18;color:${branch.color};border:1px solid ${branch.color}50">
-                        فرع رئيسي (Teleperformance)
+                        ${t("LiveMap.mainBranchBadge")}
                     </div>
                 </div>
             `);
@@ -344,13 +361,14 @@ export default function LiveMap() {
             map.remove();
             mapInstance.current = null;
         };
-    }, []);
+    }, [t]);
 
     // ── Update Leaflet Markers when GPS data changes ──────────────────────────
     useEffect(() => {
         if (!mapInstance.current) return;
         const map = mapInstance.current;
         const validCoords = [];
+        const defaultCarLabel = t("LiveMap.defaultCar");
 
         vehicles.forEach((vehicle) => {
             const gps = gpsData[vehicle.id];
@@ -364,8 +382,9 @@ export default function LiveMap() {
 
             validCoords.push([gps.lat, gps.lng]);
             const cfg = STATUS_CONFIG[gps.status] || STATUS_CONFIG.Offline;
-            const icon = createVehicleIcon(vehicle, gps, cfg.color);
+            const icon = createVehicleIcon(vehicle, gps, cfg.color, defaultCarLabel);
             const latLng = [gps.lat, gps.lng];
+            const markerTitle = t("LiveMap.vehicleTitle", { number: vehicle.number, status: t(`LiveMap.statuses.${cfg.labelKey}`) });
 
             if (markersRef.current[vehicle.id]) {
                 const marker = markersRef.current[vehicle.id];
@@ -373,7 +392,7 @@ export default function LiveMap() {
                 marker.setIcon(icon);
                 marker.setPopupContent(buildPopupContent(vehicle, gps));
             } else {
-                const marker = L.marker(latLng, { icon, title: `#${vehicle.number} — ${gps.status}` })
+                const marker = L.marker(latLng, { icon, title: markerTitle })
                     .addTo(map)
                     .bindPopup(buildPopupContent(vehicle, gps));
 
@@ -390,7 +409,7 @@ export default function LiveMap() {
             map.fitBounds(validCoords, { padding: [40, 40], maxZoom: 13 });
             hasInitialFit.current = true;
         }
-    }, [gpsData, vehicles]);
+    }, [gpsData, vehicles, buildPopupContent, t]);
 
     // ── Fit map to all tracked vehicles or Cairo region ──────────────────────
     const fitAllVehicles = useCallback(() => {
@@ -470,15 +489,15 @@ export default function LiveMap() {
                 <div className="border-b border-slate-200 p-4">
                     <div className="flex items-center justify-between mb-3">
                         <div>
-                            <h2 className="text-base font-bold text-slate-800">Live Fleet Map</h2>
+                            <h2 className="text-base font-bold text-slate-800">{t("LiveMap.title")}</h2>
                             <p className="text-xs text-slate-500">
-                                {trackedCount}/{totalVehicles} vehicles tracked
+                                {t("LiveMap.trackedCount", { tracked: trackedCount, total: totalVehicles })}
                             </p>
                         </div>
                         <button
                             onClick={handleRefresh}
                             className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-200 transition"
-                            title="Refresh GPS data"
+                            title={t("LiveMap.refreshTitle")}
                         >
                             <RefreshCw size={16} className={isRefreshing ? "animate-spin" : ""} />
                         </button>
@@ -487,12 +506,14 @@ export default function LiveMap() {
                     {/* System status */}
                     <div className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs ${sysCfg.bg}`}>
                         <SysIcon size={13} />
-                        <span className="font-semibold">GPS System: {systemStatus}</span>
+                        <span className="font-semibold">
+                            {t("LiveMap.gpsSystem", { status: t(`LiveMap.statuses.${sysCfg.labelKey}`) })}
+                        </span>
                     </div>
 
                     {lastSyncTime && (
                         <p className="mt-1.5 text-[10px] text-slate-400">
-                            Last sync: {new Date(lastSyncTime).toLocaleTimeString()}
+                            {t("LiveMap.lastSync", { time: new Date(lastSyncTime).toLocaleTimeString() })}
                         </p>
                     )}
 
@@ -501,7 +522,7 @@ export default function LiveMap() {
                             {errorMessage}
                             {systemStatus === "No Credentials" && (
                                 <Link to="/settings" className="ml-1 underline font-semibold">
-                                    Go to Settings →
+                                    {t("LiveMap.goToSettings")}
                                 </Link>
                             )}
                         </div>
@@ -511,7 +532,7 @@ export default function LiveMap() {
                 {/* Company Branches (Teleperformance) */}
                 <div className="border-b border-slate-200 p-3 bg-slate-100/70">
                     <div className="flex items-center justify-between mb-2">
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">الفروع الرئيسية (TP)</span>
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{t("LiveMap.mainBranches")}</span>
                         <Building2 size={13} className="text-indigo-600" />
                     </div>
                     <div className="grid grid-cols-3 gap-1.5">
@@ -533,19 +554,19 @@ export default function LiveMap() {
                 <div className="grid grid-cols-4 gap-1 border-b border-slate-200 p-3 text-center text-[11px]">
                     <div className="rounded-lg bg-emerald-50 py-1.5">
                         <div className="font-bold text-emerald-700 text-sm">{onlineCount}</div>
-                        <div className="text-emerald-600">Online</div>
+                        <div className="text-emerald-600">{t("LiveMap.statOnline")}</div>
                     </div>
                     <div className="rounded-lg bg-blue-50 py-1.5">
                         <div className="font-bold text-blue-700 text-sm">{movingCount}</div>
-                        <div className="text-blue-600">Moving</div>
+                        <div className="text-blue-600">{t("LiveMap.statMoving")}</div>
                     </div>
                     <div className="rounded-lg bg-amber-50 py-1.5">
                         <div className="font-bold text-amber-700 text-sm">{staleCount}</div>
-                        <div className="text-amber-600">Stale</div>
+                        <div className="text-amber-600">{t("LiveMap.statStale")}</div>
                     </div>
                     <div className="rounded-lg bg-red-50 py-1.5">
                         <div className="font-bold text-red-700 text-sm">{offlineCount}</div>
-                        <div className="text-red-600">Offline</div>
+                        <div className="text-red-600">{t("LiveMap.statOffline")}</div>
                     </div>
                 </div>
 
@@ -556,10 +577,10 @@ export default function LiveMap() {
                         onChange={(e) => setFilterStatus(e.target.value)}
                         className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-blue-500"
                     >
-                        <option value="All">All Vehicles ({vehicles.length})</option>
-                        <option value="Online">Online ({onlineCount})</option>
-                        <option value="Stale">Stale ({staleCount})</option>
-                        <option value="Offline">Offline ({offlineCount})</option>
+                        <option value="All">{t("LiveMap.allVehiclesOption", { count: vehicles.length })}</option>
+                        <option value="Online">{t("LiveMap.onlineOption", { count: onlineCount })}</option>
+                        <option value="Stale">{t("LiveMap.staleOption", { count: staleCount })}</option>
+                        <option value="Offline">{t("LiveMap.offlineOption", { count: offlineCount })}</option>
                     </select>
                 </div>
 
@@ -567,7 +588,7 @@ export default function LiveMap() {
                 <div className="flex-1 overflow-y-auto space-y-2 p-3">
                     {filteredVehicles.length === 0 && (
                         <div className="py-8 text-center text-xs text-slate-400">
-                            No vehicles in this category
+                            {t("LiveMap.noVehiclesCategory")}
                         </div>
                     )}
                     {filteredVehicles.map((vehicle) => (
@@ -602,24 +623,24 @@ export default function LiveMap() {
                         {selectedVehicle.gps && (
                             <div className="mt-3 space-y-1 text-xs text-slate-600">
                                 <div className="flex justify-between">
-                                    <span>Speed</span>
-                                    <strong>{selectedVehicle.gps.speed} km/h</strong>
+                                    <span>{t("LiveMap.speed")}</span>
+                                    <strong>{t("LiveMap.speedKmH", { speed: selectedVehicle.gps.speed })}</strong>
                                 </div>
                                 <div className="flex justify-between">
-                                    <span>Heading</span>
-                                    <strong>{selectedVehicle.gps.course}°</strong>
+                                    <span>{t("LiveMap.heading")}</span>
+                                    <strong>{t("LiveMap.courseDeg", { course: selectedVehicle.gps.course })}</strong>
                                 </div>
                                 <div className="flex justify-between">
-                                    <span>Ignition</span>
-                                    <strong>{selectedVehicle.gps.ignition ? "ON" : "OFF"}</strong>
+                                    <span>{t("LiveMap.ignition")}</span>
+                                    <strong>{selectedVehicle.gps.ignition ? t("LiveMap.ignitionOnVal") : t("LiveMap.ignitionOffVal")}</strong>
                                 </div>
                                 <div className="flex justify-between">
-                                    <span>Lat / Lng</span>
+                                    <span>{t("LiveMap.latLng")}</span>
                                     <strong>{selectedVehicle.gps.lat.toFixed(4)}, {selectedVehicle.gps.lng.toFixed(4)}</strong>
                                 </div>
                                 {selectedVehicle.gps.gpsTime && (
                                     <div className="flex justify-between">
-                                        <span>Last fix</span>
+                                        <span>{t("LiveMap.lastFix", { time: "" }).replace(/:\s*$/, "") || "Last fix"}</span>
                                         <strong>{new Date(selectedVehicle.gps.gpsTime).toLocaleTimeString()}</strong>
                                     </div>
                                 )}
@@ -632,8 +653,10 @@ export default function LiveMap() {
                 {systemStatus === "Active" && (
                     <div className="absolute top-3 left-3 z-[1000] flex items-center gap-2 rounded-full bg-white/95 backdrop-blur-sm border border-emerald-200 px-3 py-1.5 shadow-sm text-xs">
                         <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                        <span className="text-emerald-700 font-semibold">Live GPS Active</span>
-                        <span className="text-slate-400">— updates every {Math.round(Number(import.meta.env.VITE_GPS_POLL_INTERVAL_MS || 10000) / 1000)}s</span>
+                        <span className="text-emerald-700 font-semibold">{t("LiveMap.liveGpsActive")}</span>
+                        <span className="text-slate-400">
+                            {t("LiveMap.updatesEvery", { seconds: Math.round(Number(import.meta.env.VITE_GPS_POLL_INTERVAL_MS || 10000) / 1000) })}
+                        </span>
                     </div>
                 )}
 
@@ -641,7 +664,7 @@ export default function LiveMap() {
                 <div className="absolute top-3 right-3 z-[1000] flex flex-wrap items-center gap-2">
                     {/* Branch quick jump buttons */}
                     <div className="hidden sm:flex items-center gap-1 rounded-xl bg-white/95 backdrop-blur-sm border border-slate-200 p-1 shadow-sm text-xs">
-                        <span className="px-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">الفروع:</span>
+                        <span className="px-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t("LiveMap.branchesLabel")}</span>
                         {COMPANY_BRANCHES.map((b) => (
                             <button
                                 key={b.id}
@@ -658,10 +681,10 @@ export default function LiveMap() {
                     <button
                         onClick={fitAllVehicles}
                         className="flex items-center gap-1.5 rounded-xl bg-white/95 backdrop-blur-sm border border-slate-200 px-3 py-2 shadow-sm text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
-                        title="Fit all vehicles in view"
+                        title={t("LiveMap.fitAllTitle")}
                     >
                         <RotateCcw size={13} className="text-blue-500" />
-                        <span>Center Fleet</span>
+                        <span>{t("LiveMap.centerFleet")}</span>
                     </button>
                 </div>
             </div>

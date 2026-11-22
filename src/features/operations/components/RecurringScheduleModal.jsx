@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { useTranslation, Trans } from "react-i18next";
 import {
     Clock,
     Check,
@@ -27,6 +28,7 @@ import {
 } from "../../../utils/aiLearningEngine";
 
 export default function RecurringScheduleModal({ isOpen, onClose }) {
+    const { t } = useTranslation();
     const { operations, setOperations } = useOperations();
     const { routes } = useRoutes();
     const { vehicles, dailyAvailability } = useFleet();
@@ -313,22 +315,24 @@ export default function RecurringScheduleModal({ isOpen, onClose }) {
                         <div>
                             <div className="flex items-center gap-2">
                                 <h2 className="text-xl font-bold text-slate-800">
-                                    Intelligent Daily Operating Scheduler
+                                    {t("RecurringScheduleModal.title")}
                                 </h2>
                                 <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-800">
-                                    AI Powered
+                                    {t("RecurringScheduleModal.aiPowered")}
                                 </span>
                             </div>
                             <p className="mt-0.5 text-xs text-slate-500">
                                 {operationType === "Attendance"
-                                    ? "Attendance Rules: Moassassa (:15) • Maadi (:30) • Rehab (:55) • Sherouk (:00)"
-                                    : "Departure Window: 4:30 PM – 11:30 PM (PM Operating Schedule)"}
+                                    ? t("RecurringScheduleModal.attendanceRulesSubtitle")
+                                    : t("RecurringScheduleModal.departureRulesSubtitle")}
                             </p>
                         </div>
                     </div>
 
                     <button
                         onClick={onClose}
+                        title={t("RecurringScheduleModal.close")}
+                        aria-label={t("RecurringScheduleModal.close")}
                         className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
                     >
                         ✕
@@ -342,9 +346,9 @@ export default function RecurringScheduleModal({ isOpen, onClose }) {
                             <Sparkles size={18} />
                         </div>
                         <div>
-                            <span className="font-semibold text-slate-700">Demand Learning Engine</span>
+                            <span className="font-semibold text-slate-700">{t("RecurringScheduleModal.demandLearningEngine")}</span>
                             <p className="text-[11px] text-slate-500">
-                                Analyzing previous schedules to optimize vehicle allocation.
+                                {t("RecurringScheduleModal.demandLearningEngineDesc")}
                             </p>
                         </div>
                     </div>
@@ -354,9 +358,19 @@ export default function RecurringScheduleModal({ isOpen, onClose }) {
                             {hasCapacityShortage ? <ShieldAlert size={18} /> : <CheckCircle2 size={18} />}
                         </div>
                         <div>
-                            <span className="font-semibold text-slate-700">Fleet Capacity Check</span>
+                            <span className="font-semibold text-slate-700">{t("RecurringScheduleModal.fleetCapacityCheck")}</span>
                             <p className="text-[11px] text-slate-500">
-                                Peak Hour: <strong className={hasCapacityShortage ? 'text-amber-700' : 'text-slate-800'}>{peakConcurrentCount}</strong> req. / {availableFleetCount} available
+                                <Trans
+                                    i18nKey="RecurringScheduleModal.peakHourRatio"
+                                    values={{
+                                        peak: peakConcurrentCount,
+                                        available: availableFleetCount,
+                                        className: hasCapacityShortage ? 'text-amber-700' : 'text-slate-800'
+                                    }}
+                                    components={{
+                                        strong: <strong className={hasCapacityShortage ? 'text-amber-700' : 'text-slate-800'} />
+                                    }}
+                                />
                             </p>
                         </div>
                     </div>
@@ -368,7 +382,7 @@ export default function RecurringScheduleModal({ isOpen, onClose }) {
                             className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2.5 text-xs font-semibold text-white shadow-md shadow-blue-500/20 hover:from-blue-700 hover:to-indigo-700 transition active:scale-95"
                         >
                             <Sparkles size={16} />
-                            Apply AI Recommendations
+                            {t("RecurringScheduleModal.applyAiRecommendations")}
                         </button>
                     </div>
                 </div>
@@ -377,7 +391,7 @@ export default function RecurringScheduleModal({ isOpen, onClose }) {
                 <div className="grid grid-cols-1 gap-4 border-b border-slate-100 bg-white p-5 sm:grid-cols-4">
                     <div>
                         <label className="mb-1 block text-xs font-semibold uppercase text-slate-500">
-                            Operating Date
+                            {t("RecurringScheduleModal.operatingDate")}
                         </label>
                         <input
                             type="date"
@@ -389,7 +403,7 @@ export default function RecurringScheduleModal({ isOpen, onClose }) {
 
                     <div>
                         <label className="mb-1 block text-xs font-semibold uppercase text-slate-500">
-                            Schedule Type
+                            {t("RecurringScheduleModal.scheduleType")}
                         </label>
                         <div className="grid grid-cols-2 gap-1 rounded-lg border border-slate-300 bg-slate-100 p-1">
                             <button
@@ -401,7 +415,7 @@ export default function RecurringScheduleModal({ isOpen, onClose }) {
                                         : "text-slate-600 hover:text-slate-900"
                                 }`}
                             >
-                                Attendance (الحضور)
+                                {t("RecurringScheduleModal.attendance")}
                             </button>
                             <button
                                 type="button"
@@ -412,24 +426,24 @@ export default function RecurringScheduleModal({ isOpen, onClose }) {
                                         : "text-slate-600 hover:text-slate-900"
                                 }`}
                             >
-                                Departure (الانصراف)
+                                {t("RecurringScheduleModal.departure")}
                             </button>
                         </div>
                     </div>
 
                     <div>
                         <label className="mb-1 block text-xs font-semibold uppercase text-slate-500">
-                            Filter Location
+                            {t("RecurringScheduleModal.filterLocation")}
                         </label>
                         <select
                             value={selectedLocation}
                             onChange={(e) => setSelectedLocation(e.target.value)}
                             className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500"
                         >
-                            <option value="All">All Locations (الكل)</option>
+                            <option value="All">{t("RecurringScheduleModal.allLocations")}</option>
                             {ATTENDANCE_RULES.map((rule) => (
                                 <option key={rule.locationKey} value={rule.locationKey}>
-                                    {rule.displayName}
+                                    {t(`RecurringScheduleModal.locations.${rule.locationKey}`, { defaultValue: rule.displayName })}
                                 </option>
                             ))}
                         </select>
@@ -438,11 +452,11 @@ export default function RecurringScheduleModal({ isOpen, onClose }) {
                     <div className="flex flex-col justify-end">
                         <div className="rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-900 border border-blue-100">
                             <div className="flex justify-between">
-                                <span>Active Slots:</span>
+                                <span>{t("RecurringScheduleModal.activeSlots")}</span>
                                 <strong className="font-bold">{activeSlotsCount}</strong>
                             </div>
                             <div className="flex justify-between mt-0.5">
-                                <span>Total Vehicles:</span>
+                                <span>{t("RecurringScheduleModal.totalVehicles")}</span>
                                 <strong className="font-bold text-blue-700">{totalEnteredVehicles}</strong>
                             </div>
                         </div>
@@ -454,14 +468,14 @@ export default function RecurringScheduleModal({ isOpen, onClose }) {
                     {savedNotice && (
                         <div className="mb-4 flex items-center gap-2 rounded-lg bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800 border border-emerald-200">
                             <Check size={18} className="text-emerald-600" />
-                            Schedule requirements successfully saved & synchronized! Learning data updated.
+                            {t("RecurringScheduleModal.savedNotice")}
                         </div>
                     )}
 
                     {aiAppliedNotice && (
                         <div className="mb-4 flex items-center gap-2 rounded-lg bg-blue-50 px-4 py-3 text-sm font-medium text-blue-800 border border-blue-200">
                             <Sparkles size={18} className="text-blue-600" />
-                            AI recommendations applied to slots! Review and fine-tune as needed.
+                            {t("RecurringScheduleModal.aiAppliedNotice")}
                         </div>
                     )}
 
@@ -469,7 +483,11 @@ export default function RecurringScheduleModal({ isOpen, onClose }) {
                         <div className="mb-4 flex items-center gap-2 rounded-lg bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800 border border-amber-200">
                             <ShieldAlert size={18} className="text-amber-600 flex-shrink-0" />
                             <span>
-                                <strong>Capacity Shortage Detected:</strong> Peak concurrent demand is {peakConcurrentCount} vehicles, exceeding today&apos;s available fleet of {availableFleetCount} vehicles.
+                                <strong>{t("RecurringScheduleModal.capacityShortageTitle")}</strong>{" "}
+                                {t("RecurringScheduleModal.capacityShortageMessage", {
+                                    peak: peakConcurrentCount,
+                                    available: availableFleetCount
+                                })}
                             </span>
                         </div>
                     )}
@@ -478,12 +496,12 @@ export default function RecurringScheduleModal({ isOpen, onClose }) {
                         <table className="w-full text-left text-sm">
                             <thead className="bg-slate-100 text-xs font-semibold uppercase text-slate-600">
                                 <tr>
-                                    <th className="px-4 py-3">Location</th>
-                                    <th className="px-4 py-3">Time</th>
-                                    <th className="px-4 py-3">Linked Route</th>
-                                    <th className="px-4 py-3">AI Demand Insight</th>
-                                    <th className="px-4 py-3">Current Status</th>
-                                    <th className="px-4 py-3 text-right">Required Vehicles</th>
+                                    <th className="px-4 py-3">{t("RecurringScheduleModal.table.location")}</th>
+                                    <th className="px-4 py-3">{t("RecurringScheduleModal.table.time")}</th>
+                                    <th className="px-4 py-3">{t("RecurringScheduleModal.table.linkedRoute")}</th>
+                                    <th className="px-4 py-3">{t("RecurringScheduleModal.table.aiDemandInsight")}</th>
+                                    <th className="px-4 py-3">{t("RecurringScheduleModal.table.currentStatus")}</th>
+                                    <th className="px-4 py-3 text-right">{t("RecurringScheduleModal.table.requiredVehicles")}</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
@@ -502,12 +520,12 @@ export default function RecurringScheduleModal({ isOpen, onClose }) {
                                             }`}
                                         >
                                             <td className="px-4 py-3 font-semibold text-slate-800">
-                                                {slot.locationName}
+                                                {t(`RecurringScheduleModal.locations.${slot.locationKey}`, { defaultValue: slot.locationName })}
                                             </td>
                                             <td className="px-4 py-3">
                                                 <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2.5 py-1 font-mono text-xs font-bold text-slate-700">
                                                     <Clock size={13} className="text-slate-400" />
-                                                    {slot.time} {slot.period}
+                                                    {slot.time} {t(`RecurringScheduleModal.periods.${slot.period.toLowerCase()}`, { defaultValue: slot.period })}
                                                 </span>
                                             </td>
                                             <td className="px-4 py-3 text-xs text-slate-600">
@@ -516,7 +534,7 @@ export default function RecurringScheduleModal({ isOpen, onClose }) {
                                                         {slot.route.name}
                                                     </span>
                                                 ) : (
-                                                    <span className="text-amber-600">No matching route</span>
+                                                    <span className="text-amber-600">{t("RecurringScheduleModal.table.noMatchingRoute")}</span>
                                                 )}
                                             </td>
                                             <td className="px-4 py-3 text-xs">
@@ -525,16 +543,16 @@ export default function RecurringScheduleModal({ isOpen, onClose }) {
                                                         <div className="flex items-center gap-1.5">
                                                             <span className="inline-flex items-center gap-1 rounded bg-indigo-50 px-2 py-0.5 font-semibold text-indigo-700 text-[11px] border border-indigo-100">
                                                                 <Sparkles size={11} />
-                                                                Suggests: {rec.recommendedCount}
+                                                                {t("RecurringScheduleModal.table.suggests", { count: rec.recommendedCount })}
                                                             </span>
                                                             {rec.trend === "Increasing" && (
                                                                 <span className="inline-flex items-center gap-0.5 text-emerald-600 text-[11px] font-medium">
-                                                                    <TrendingUp size={12} /> Rising
+                                                                    <TrendingUp size={12} /> {t("RecurringScheduleModal.table.rising")}
                                                                 </span>
                                                             )}
                                                             {rec.trend === "Decreasing" && (
                                                                 <span className="inline-flex items-center gap-0.5 text-amber-600 text-[11px] font-medium">
-                                                                    <TrendingDown size={12} /> Lower
+                                                                    <TrendingDown size={12} /> {t("RecurringScheduleModal.table.lower")}
                                                                 </span>
                                                             )}
                                                         </div>
@@ -553,11 +571,14 @@ export default function RecurringScheduleModal({ isOpen, onClose }) {
                                                                 : "bg-amber-100 text-amber-800"
                                                         }`}
                                                     >
-                                                        {existing.status} ({existing.vehiclesCount} req)
+                                                        {t("RecurringScheduleModal.table.statusWithReq", {
+                                                            status: existing.status,
+                                                            count: existing.vehiclesCount
+                                                        })}
                                                     </span>
                                                 ) : hasValue ? (
                                                     <span className="rounded-full bg-blue-100 px-2.5 py-0.5 font-medium text-blue-800">
-                                                        New
+                                                        {t("RecurringScheduleModal.table.new")}
                                                     </span>
                                                 ) : (
                                                     <span className="text-slate-400">—</span>
@@ -568,6 +589,8 @@ export default function RecurringScheduleModal({ isOpen, onClose }) {
                                                     <button
                                                         type="button"
                                                         onClick={() => handleDecrement(slot.key)}
+                                                        title={t("RecurringScheduleModal.table.decreaseVehicles")}
+                                                        aria-label={t("RecurringScheduleModal.table.decreaseVehicles")}
                                                         className="h-8 w-8 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 flex items-center justify-center transition active:scale-95"
                                                     >
                                                         <Minus size={14} />
@@ -575,7 +598,7 @@ export default function RecurringScheduleModal({ isOpen, onClose }) {
                                                     <input
                                                         type="number"
                                                         min="0"
-                                                        placeholder="0"
+                                                        placeholder={t("RecurringScheduleModal.table.vehiclesPlaceholder")}
                                                         value={value}
                                                         onChange={(e) =>
                                                             handleCountChange(slot.key, e.target.value)
@@ -589,6 +612,8 @@ export default function RecurringScheduleModal({ isOpen, onClose }) {
                                                     <button
                                                         type="button"
                                                         onClick={() => handleIncrement(slot.key)}
+                                                        title={t("RecurringScheduleModal.table.increaseVehicles")}
+                                                        aria-label={t("RecurringScheduleModal.table.increaseVehicles")}
                                                         className="h-8 w-8 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 flex items-center justify-center transition active:scale-95"
                                                     >
                                                         <Plus size={14} />
@@ -611,7 +636,7 @@ export default function RecurringScheduleModal({ isOpen, onClose }) {
                         className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
                     >
                         <RotateCcw size={16} />
-                        Clear All
+                        {t("RecurringScheduleModal.clearAll")}
                     </button>
 
                     <div className="flex items-center gap-3">
@@ -620,7 +645,7 @@ export default function RecurringScheduleModal({ isOpen, onClose }) {
                             onClick={onClose}
                             className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200/60"
                         >
-                            Cancel
+                            {t("RecurringScheduleModal.cancel")}
                         </button>
                         <button
                             type="button"
@@ -628,7 +653,7 @@ export default function RecurringScheduleModal({ isOpen, onClose }) {
                             className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 active:scale-95"
                         >
                             <Save size={16} />
-                            Save Operating Schedule
+                            {t("RecurringScheduleModal.saveOperatingSchedule")}
                         </button>
                     </div>
                 </div>

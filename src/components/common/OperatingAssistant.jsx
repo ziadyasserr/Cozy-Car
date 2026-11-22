@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
     Sparkles,
     AlertTriangle,
@@ -18,6 +19,7 @@ import { useDriverAssignments } from "../../context/DriverAssignmentsContext";
 import { analyzeScheduleHealth } from "../../utils/aiLearningEngine";
 
 export default function OperatingAssistant({ targetDate, onOpenScheduler, onOpenAutoAllocation }) {
+    const { t } = useTranslation();
     const { operations } = useOperations();
     const { vehicles, dailyAvailability } = useFleet();
     const { drivers } = useDrivers();
@@ -59,49 +61,59 @@ export default function OperatingAssistant({ targetDate, onOpenScheduler, onOpen
                             <Sparkles size={16} />
                         </div>
                         <span className="text-xs font-bold tracking-wider uppercase text-indigo-300">
-                            Cozy Operating Assistant
+                            {t("OperatingAssistant.title")}
                         </span>
                         <span className="rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-300 border border-emerald-500/30">
-                            System Active
+                            {t("OperatingAssistant.systemActive")}
                         </span>
                     </div>
 
                     <h2 className="text-xl font-bold text-white tracking-tight">
-                        Operating Health &amp; Autonomous Recommendations
+                        {t("OperatingAssistant.heading")}
                     </h2>
 
                     <p className="mt-1 text-sm text-slate-300 leading-relaxed">
                         {health.hasShortage
-                            ? `Shortage alert: Peak demand of ${health.peakDemand} vehicles at ${health.peakHour} exceeds available fleet (${health.effectiveCapacity}). Consider load balancing.`
+                            ? t("OperatingAssistant.shortageAlert", {
+                                peakDemand: health.peakDemand,
+                                peakHour: health.peakHour,
+                                effectiveCapacity: health.effectiveCapacity
+                            })
                             : unallocatedVehiclesNeeded > 0
-                            ? `You have ${pendingOpsCount} pending operations (${unallocatedVehiclesNeeded} vehicle slots) requiring driver & route assignment for ${dateToAnalyze}.`
-                            : `Operating schedule is balanced for ${dateToAnalyze}. Fleet capacity and driver coverage are optimal.`}
+                            ? t("OperatingAssistant.pendingOpsAlert", {
+                                pendingOpsCount,
+                                unallocatedVehiclesNeeded,
+                                date: dateToAnalyze
+                            })
+                            : t("OperatingAssistant.scheduleBalanced", {
+                                date: dateToAnalyze
+                            })}
                     </p>
 
                     {/* Quick Stats Grid */}
                     <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                         <div className="rounded-xl bg-white/5 border border-white/10 p-3">
-                            <span className="text-slate-400 block text-[11px]">Health Score</span>
+                            <span className="text-slate-400 block text-[11px]">{t("OperatingAssistant.healthScore")}</span>
                             <span className="text-lg font-bold text-white mt-0.5 block">
                                 {health.healthScore}%
                             </span>
                         </div>
                         <div className="rounded-xl bg-white/5 border border-white/10 p-3">
-                            <span className="text-slate-400 block text-[11px]">Peak Demand</span>
+                            <span className="text-slate-400 block text-[11px]">{t("OperatingAssistant.peakDemand")}</span>
                             <span className="text-lg font-bold text-white mt-0.5 block">
-                                {health.peakDemand} <span className="text-xs font-normal text-slate-400">vehicles</span>
+                                {health.peakDemand} <span className="text-xs font-normal text-slate-400">{t("OperatingAssistant.vehiclesUnit")}</span>
                             </span>
                         </div>
                         <div className="rounded-xl bg-white/5 border border-white/10 p-3">
-                            <span className="text-slate-400 block text-[11px]">Available Fleet</span>
+                            <span className="text-slate-400 block text-[11px]">{t("OperatingAssistant.availableFleet")}</span>
                             <span className="text-lg font-bold text-white mt-0.5 block">
-                                {health.effectiveCapacity} <span className="text-xs font-normal text-slate-400">active</span>
+                                {health.effectiveCapacity} <span className="text-xs font-normal text-slate-400">{t("OperatingAssistant.activeUnit")}</span>
                             </span>
                         </div>
                         <div className="rounded-xl bg-white/5 border border-white/10 p-3">
-                            <span className="text-slate-400 block text-[11px]">Active Drivers</span>
+                            <span className="text-slate-400 block text-[11px]">{t("OperatingAssistant.activeDrivers")}</span>
                             <span className="text-lg font-bold text-white mt-0.5 block">
-                                {health.activeDrivers} <span className="text-xs font-normal text-slate-400">on duty</span>
+                                {health.activeDrivers} <span className="text-xs font-normal text-slate-400">{t("OperatingAssistant.onDutyUnit")}</span>
                             </span>
                         </div>
                     </div>
@@ -117,7 +129,7 @@ export default function OperatingAssistant({ targetDate, onOpenScheduler, onOpen
                         >
                             <span className="flex items-center gap-2">
                                 <Clock size={16} />
-                                Smart Daily Scheduler
+                                {t("OperatingAssistant.smartDailyScheduler")}
                             </span>
                             <ChevronRight size={16} />
                         </button>
@@ -131,7 +143,7 @@ export default function OperatingAssistant({ targetDate, onOpenScheduler, onOpen
                         >
                             <span className="flex items-center gap-2">
                                 <Zap size={16} className="text-amber-400" />
-                                Run Smart Auto-Allocation
+                                {t("OperatingAssistant.runSmartAutoAllocation")}
                             </span>
                             <ChevronRight size={16} />
                         </button>
@@ -142,7 +154,7 @@ export default function OperatingAssistant({ targetDate, onOpenScheduler, onOpen
                         >
                             <span className="flex items-center gap-2">
                                 <Zap size={16} className="text-amber-400" />
-                                Go to Smart Allocation
+                                {t("OperatingAssistant.goToSmartAllocation")}
                             </span>
                             <ArrowUpRight size={16} />
                         </Link>

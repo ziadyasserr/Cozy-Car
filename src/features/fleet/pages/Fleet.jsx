@@ -1,6 +1,7 @@
 
 import { useState } from "react";
 import { Plus, Pencil, Trash2, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { useFleet } from "../../../context/FleetContext";
 import StatCard from "../../../components/ui/StatCard";
@@ -15,6 +16,7 @@ const emptyForm = {
 };
 
 function Fleet() {
+    const { t } = useTranslation();
     const [showForm, setShowForm] = useState(false);
     const [editingId, setEditingId] = useState(null);
     const [formData, setFormData] = useState(emptyForm);
@@ -85,7 +87,7 @@ function Fleet() {
         if (isDuplicate) {
             setAlertModal({
                 open: true,
-                message: "A vehicle with this number already exists.",
+                message: t("Fleet.alerts.duplicateVehicle"),
             });
             return;
         }
@@ -194,10 +196,10 @@ function Fleet() {
             <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-800">
-                        Fleet Management
+                        {t("Fleet.title")}
                     </h1>
                     <p className="mt-1 text-sm text-gray-500">
-                        Manage your company vehicles and daily availability.
+                        {t("Fleet.description")}
                     </p>
                 </div>
 
@@ -206,21 +208,21 @@ function Fleet() {
                     className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
                 >
                     <Plus size={18} />
-                    Add Vehicle
+                    {t("Fleet.addVehicle")}
                 </button>
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <StatCard title="Total Vehicles" value={vehicles.length} />
-                <StatCard title="Total Buses" value={totalBuses} />
-                <StatCard title="Total Coasters" value={totalCoasters} />
+                <StatCard title={t("Fleet.totalVehicles")} value={vehicles.length} />
+                <StatCard title={t("Fleet.totalBuses")} value={totalBuses} />
+                <StatCard title={t("Fleet.totalCoasters")} value={totalCoasters} />
             </div>
 
             {showForm && (
                 <div className="rounded-xl border border-gray-200 bg-white p-6">
                     <div className="mb-5 flex items-center justify-between">
                         <h2 className="text-lg font-semibold text-gray-800">
-                            {editingId !== null ? "Edit Vehicle" : "Add New Vehicle"}
+                            {editingId !== null ? t("Fleet.editVehicle") : t("Fleet.addNewVehicle")}
                         </h2>
 
                         <button
@@ -235,39 +237,39 @@ function Fleet() {
                         onSubmit={handleSubmit}
                         className="grid gap-4 sm:grid-cols-3"
                     >
-                        <FormField label="Vehicle Number / Name">
+                        <FormField label={t("Fleet.vehicleNumberLabel")}>
                             <input
                                 name="number"
                                 value={formData.number}
                                 onChange={handleChange}
-                                placeholder="Enter vehicle number"
+                                placeholder={t("Fleet.vehicleNumberPlaceholder")}
                                 className="form-input"
                                 required
                             />
                         </FormField>
 
-                        <FormField label="Vehicle Type">
+                        <FormField label={t("Fleet.vehicleTypeLabel")}>
                             <select
                                 name="type"
                                 value={formData.type}
                                 onChange={handleChange}
                                 className="form-input"
                             >
-                                <option value="Bus">Bus</option>
-                                <option value="Coaster">Coaster</option>
+                                <option value="Bus">{t("Fleet.types.bus")}</option>
+                                <option value="Coaster">{t("Fleet.types.coaster")}</option>
                             </select>
                         </FormField>
 
-                        <FormField label="General Status">
+                        <FormField label={t("Fleet.generalStatusLabel")}>
                             <select
                                 name="status"
                                 value={formData.status}
                                 onChange={handleChange}
                                 className="form-input"
                             >
-                                <option value="Active">Active</option>
-                                <option value="Maintenance">Maintenance</option>
-                                <option value="Inactive">Inactive</option>
+                                <option value="Active">{t("Fleet.statuses.active")}</option>
+                                <option value="Maintenance">{t("Fleet.statuses.maintenance")}</option>
+                                <option value="Inactive">{t("Fleet.statuses.inactive")}</option>
                             </select>
                         </FormField>
 
@@ -276,7 +278,7 @@ function Fleet() {
                                 type="submit"
                                 className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
                             >
-                                {editingId !== null ? "Save Changes" : "Add Vehicle"}
+                                {editingId !== null ? t("Fleet.saveChanges") : t("Fleet.addVehicle")}
                             </button>
 
                             <button
@@ -284,7 +286,7 @@ function Fleet() {
                                 onClick={closeForm}
                                 className="rounded-lg border border-gray-300 px-5 py-2.5 text-sm text-gray-600 hover:bg-gray-50"
                             >
-                                Cancel
+                                {t("Fleet.cancel")}
                             </button>
                         </div>
                     </form>
@@ -295,10 +297,10 @@ function Fleet() {
                 <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
                     <div>
                         <h2 className="text-lg font-semibold text-gray-800">
-                            Daily Availability
+                            {t("Fleet.dailyAvailability")}
                         </h2>
                         <p className="mt-1 text-sm text-gray-500">
-                            All active vehicles are available by default. Mark only unavailable vehicles.
+                            {t("Fleet.dailyAvailabilityDesc")}
                         </p>
                     </div>
 
@@ -311,17 +313,17 @@ function Fleet() {
                 </div>
 
                 <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <StatCard title="Available" value={availableVehicles} />
-                    <StatCard title="Unavailable" value={unavailableVehicles} />
+                    <StatCard title={t("Fleet.available")} value={availableVehicles} />
+                    <StatCard title={t("Fleet.unavailable")} value={unavailableVehicles} />
                 </div>
 
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm">
                         <thead className="bg-gray-50 text-gray-500">
                             <tr>
-                                <th className="px-4 py-3 font-medium">Vehicle</th>
-                                <th className="px-4 py-3 font-medium">Type</th>
-                                <th className="px-4 py-3 font-medium">Availability</th>
+                                <th className="px-4 py-3 font-medium">{t("Fleet.thVehicle")}</th>
+                                <th className="px-4 py-3 font-medium">{t("Fleet.thType")}</th>
+                                <th className="px-4 py-3 font-medium">{t("Fleet.thAvailability")}</th>
                             </tr>
                         </thead>
 
@@ -341,7 +343,11 @@ function Fleet() {
                                         </td>
 
                                         <td className="px-4 py-3 text-gray-500">
-                                            {vehicle.type}
+                                            {vehicle.type === "Bus"
+                                                ? t("Fleet.types.bus")
+                                                : vehicle.type === "Coaster"
+                                                    ? t("Fleet.types.coaster")
+                                                    : vehicle.type}
                                         </td>
 
                                         <td className="px-4 py-3">
@@ -357,16 +363,25 @@ function Fleet() {
                                                 className="rounded-lg border border-gray-300 px-3 py-2 disabled:bg-gray-100"
                                             >
                                                 <option value="Available">
-                                                    Available
+                                                    {t("Fleet.available")}
                                                 </option>
                                                 <option value="Unavailable">
-                                                    Unavailable
+                                                    {t("Fleet.unavailable")}
                                                 </option>
                                             </select>
 
                                             {isDisabled && (
                                                 <p className="mt-1 text-xs text-red-500">
-                                                    Vehicle is {vehicle.status}
+                                                    {t("Fleet.vehicleIsStatus", {
+                                                        status:
+                                                            vehicle.status === "Active"
+                                                                ? t("Fleet.statuses.active")
+                                                                : vehicle.status === "Maintenance"
+                                                                    ? t("Fleet.statuses.maintenance")
+                                                                    : vehicle.status === "Inactive"
+                                                                        ? t("Fleet.statuses.inactive")
+                                                                        : vehicle.status,
+                                                    })}
                                                 </p>
                                             )}
                                         </td>
@@ -380,7 +395,7 @@ function Fleet() {
                                         colSpan="3"
                                         className="px-4 py-8 text-center text-gray-500"
                                     >
-                                        No vehicles found.
+                                        {t("Fleet.noVehiclesFound")}
                                     </td>
                                 </tr>
                             )}
@@ -392,10 +407,10 @@ function Fleet() {
             <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
                 <div className="border-b border-gray-200 p-5">
                     <h2 className="font-semibold text-gray-800">
-                        All Vehicles
+                        {t("Fleet.allVehicles")}
                     </h2>
                     <p className="mt-1 text-sm text-gray-500">
-                        {vehicles.length} registered vehicles
+                        {t("Fleet.registeredVehiclesCount", { count: vehicles.length })}
                     </p>
                 </div>
 
@@ -403,11 +418,11 @@ function Fleet() {
                     <table className="w-full text-left text-sm">
                         <thead className="bg-gray-50 text-gray-500">
                             <tr>
-                                <th className="px-5 py-4 font-medium">#</th>
-                                <th className="px-5 py-4 font-medium">Vehicle</th>
-                                <th className="px-5 py-4 font-medium">Type</th>
-                                <th className="px-5 py-4 font-medium">Status</th>
-                                <th className="px-5 py-4 font-medium">Actions</th>
+                                <th className="px-5 py-4 font-medium">{t("Fleet.thIndex")}</th>
+                                <th className="px-5 py-4 font-medium">{t("Fleet.thVehicle")}</th>
+                                <th className="px-5 py-4 font-medium">{t("Fleet.thType")}</th>
+                                <th className="px-5 py-4 font-medium">{t("Fleet.thStatus")}</th>
+                                <th className="px-5 py-4 font-medium">{t("Fleet.thActions")}</th>
                             </tr>
                         </thead>
 
@@ -423,11 +438,21 @@ function Fleet() {
                                     </td>
 
                                     <td className="px-5 py-4 text-gray-600">
-                                        {vehicle.type}
+                                        {vehicle.type === "Bus"
+                                            ? t("Fleet.types.bus")
+                                            : vehicle.type === "Coaster"
+                                                ? t("Fleet.types.coaster")
+                                                : vehicle.type}
                                     </td>
 
                                     <td className="px-5 py-4 text-gray-600">
-                                        {vehicle.status}
+                                        {vehicle.status === "Active"
+                                            ? t("Fleet.statuses.active")
+                                            : vehicle.status === "Maintenance"
+                                                ? t("Fleet.statuses.maintenance")
+                                                : vehicle.status === "Inactive"
+                                                    ? t("Fleet.statuses.inactive")
+                                                    : vehicle.status}
                                     </td>
 
                                     <td className="px-5 py-4">
@@ -435,7 +460,7 @@ function Fleet() {
                                             <button
                                                 onClick={() => handleEdit(vehicle)}
                                                 className="text-blue-600 hover:text-blue-800"
-                                                title="Edit"
+                                                title={t("Fleet.editTooltip")}
                                             >
                                                 <Pencil size={17} />
                                             </button>
@@ -443,7 +468,7 @@ function Fleet() {
                                             <button
                                                 onClick={() => handleDelete(vehicle.id)}
                                                 className="text-red-500 hover:text-red-700"
-                                                title="Delete"
+                                                title={t("Fleet.deleteTooltip")}
                                             >
                                                 <Trash2 size={17} />
                                             </button>
@@ -458,7 +483,7 @@ function Fleet() {
                                         colSpan="5"
                                         className="px-5 py-10 text-center text-gray-500"
                                     >
-                                        No vehicles found.
+                                        {t("Fleet.noVehiclesFound")}
                                     </td>
                                 </tr>
                             )}
@@ -469,16 +494,16 @@ function Fleet() {
 
             <ConfirmModal
                 isOpen={confirmDelete.open}
-                title="Delete Vehicle?"
-                message="Are you sure you want to delete this vehicle? This will also remove all its availability records."
-                confirmLabel="Delete"
+                title={t("Fleet.deleteModalTitle")}
+                message={t("Fleet.deleteModalMessage")}
+                confirmLabel={t("Fleet.deleteModalConfirm")}
                 onConfirm={confirmDeleteVehicle}
                 onCancel={() => setConfirmDelete({ open: false, id: null })}
             />
 
             <AlertModal
                 isOpen={alertModal.open}
-                title="Duplicate Vehicle"
+                title={t("Fleet.duplicateAlertTitle")}
                 message={alertModal.message}
                 type="warning"
                 onClose={() => setAlertModal({ open: false, message: "" })}
@@ -488,3 +513,4 @@ function Fleet() {
 }
 
 export default Fleet;
+

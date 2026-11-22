@@ -1,5 +1,6 @@
 
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Plus, Pencil, Trash2, X, Bus } from "lucide-react";
 import { useDrivers } from "../../../context/DriversContext";
 import { useFleet } from "../../../context/FleetContext";
@@ -11,8 +12,8 @@ const FIRST_SHIFT = "00:00-12:00";
 const SECOND_SHIFT = "12:00-00:00";
 
 const SHIFT_OPTIONS = [
-    { value: FIRST_SHIFT, label: "First Shift (12:00 AM - 12:00 PM)" },
-    { value: SECOND_SHIFT, label: "Second Shift (12:00 PM - 12:00 AM)" },
+    { value: FIRST_SHIFT, labelKey: "Drivers.shifts.firstShift" },
+    { value: SECOND_SHIFT, labelKey: "Drivers.shifts.secondShift" },
 ];
 
 const emptyForm = {
@@ -29,6 +30,7 @@ function getDriverShift(driver) {
 }
 
 function Drivers() {
+    const { t } = useTranslation();
     const { drivers, setDrivers } = useDrivers();
     const { vehicles } = useFleet();
 
@@ -80,7 +82,7 @@ function Drivers() {
         if (!trimmedName) {
             setAlertModal({
                 open: true,
-                message: "Driver name is required.",
+                message: t("Drivers.alerts.nameRequired"),
             });
             return;
         }
@@ -94,7 +96,7 @@ function Drivers() {
         if (duplicateName) {
             setAlertModal({
                 open: true,
-                message: "A driver with this name already exists.",
+                message: t("Drivers.alerts.nameExists"),
             });
             return;
         }
@@ -103,7 +105,7 @@ function Drivers() {
             if (!formData.vehicleId) {
                 setAlertModal({
                     open: true,
-                    message: "Please select the fixed vehicle.",
+                    message: t("Drivers.alerts.selectFixedVehicle"),
                 });
                 return;
             }
@@ -119,8 +121,7 @@ function Drivers() {
             if (sameVehicleAndShift) {
                 setAlertModal({
                     open: true,
-                    message:
-                        "This vehicle already has a fixed driver assigned to this shift. Choose the other shift.",
+                    message: t("Drivers.alerts.shiftConflict"),
                 });
                 return;
             }
@@ -200,18 +201,20 @@ function Drivers() {
             (vehicle) => Number(vehicle.id) === Number(vehicleId)
         );
 
-    const getShiftLabel = (shift) =>
-        SHIFT_OPTIONS.find((option) => option.value === shift)?.label || "-";
+    const getShiftLabel = (shift) => {
+        const option = SHIFT_OPTIONS.find((opt) => opt.value === shift);
+        return option ? t(option.labelKey) : "-";
+    };
 
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-800">
-                        Drivers
+                        {t("Drivers.title")}
                     </h1>
                     <p className="mt-1 text-sm text-gray-500">
-                        Manage drivers and their fixed vehicle shifts
+                        {t("Drivers.description")}
                     </p>
                 </div>
 
@@ -225,15 +228,15 @@ function Drivers() {
                     className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
                 >
                     <Plus size={18} />
-                    Add Driver
+                    {t("Drivers.addDriver")}
                 </button>
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <StatCard title="Total Drivers" value={drivers.length} />
+                <StatCard title={t("Drivers.totalDrivers")} value={drivers.length} />
 
                 <StatCard
-                    title="Active Drivers"
+                    title={t("Drivers.activeDrivers")}
                     value={
                         drivers.filter((driver) => driver.status === "Active")
                             .length
@@ -241,7 +244,7 @@ function Drivers() {
                 />
 
                 <StatCard
-                    title="Inactive Drivers"
+                    title={t("Drivers.inactiveDrivers")}
                     value={
                         drivers.filter(
                             (driver) => driver.status === "Inactive"
@@ -255,8 +258,8 @@ function Drivers() {
                     <div className="mb-5 flex items-center justify-between">
                         <h2 className="text-lg font-semibold text-gray-800">
                             {editingId !== null
-                                ? "Edit Driver"
-                                : "Add New Driver"}
+                                ? t("Drivers.editDriver")
+                                : t("Drivers.addNewDriver")}
                         </h2>
 
                         <button
@@ -274,25 +277,25 @@ function Drivers() {
                     >
                         <div>
                             <label className="mb-2 block text-sm font-medium">
-                                Driver Name
+                                {t("Drivers.driverName")}
                             </label>
                             <input
                                 required
                                 value={formData.name}
                                 onChange={(e) =>
                                     setFormData((prev) => ({
-                                        ...prev,
+                                         ...prev,
                                         name: e.target.value,
                                     }))
                                 }
                                 className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-blue-500"
-                                placeholder="Enter driver name"
+                                placeholder={t("Drivers.driverNamePlaceholder")}
                             />
                         </div>
 
                         <div>
                             <label className="mb-2 block text-sm font-medium">
-                                Phone Number
+                                {t("Drivers.phoneNumber")}
                             </label>
                             <input
                                 type="tel"
@@ -304,13 +307,13 @@ function Drivers() {
                                     }))
                                 }
                                 className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-blue-500"
-                                placeholder="Enter phone number"
+                                placeholder={t("Drivers.phoneNumberPlaceholder")}
                             />
                         </div>
 
                         <div>
                             <label className="mb-2 block text-sm font-medium">
-                                Driver Type
+                                {t("Drivers.driverType")}
                             </label>
                             <select
                                 value={formData.driverType}
@@ -320,10 +323,10 @@ function Drivers() {
                                 className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-blue-500"
                             >
                                 <option value="Shift Driver">
-                                    Shift Driver
+                                    {t("Drivers.shiftDriver")}
                                 </option>
                                 <option value="Fixed Vehicle Driver">
-                                    Fixed Vehicle Driver
+                                    {t("Drivers.fixedVehicleDriver")}
                                 </option>
                             </select>
                         </div>
@@ -332,7 +335,7 @@ function Drivers() {
                             <>
                                 <div>
                                     <label className="mb-2 block text-sm font-medium">
-                                        Fixed Vehicle
+                                        {t("Drivers.fixedVehicle")}
                                     </label>
                                     <select
                                         required
@@ -346,7 +349,7 @@ function Drivers() {
                                         className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-blue-500"
                                     >
                                         <option value="">
-                                            Select Fixed Vehicle
+                                            {t("Drivers.selectFixedVehicle")}
                                         </option>
 
                                         {activeVehicles.map((vehicle) => (
@@ -362,7 +365,7 @@ function Drivers() {
 
                                 <div>
                                     <label className="mb-2 block text-sm font-medium">
-                                        Fixed Shift
+                                        {t("Drivers.fixedShift")}
                                     </label>
                                     <select
                                         value={formData.fixedShift}
@@ -379,7 +382,7 @@ function Drivers() {
                                                 key={shift.value}
                                                 value={shift.value}
                                             >
-                                                {shift.label}
+                                                {t(shift.labelKey)}
                                             </option>
                                         ))}
                                     </select>
@@ -389,7 +392,7 @@ function Drivers() {
 
                         <div>
                             <label className="mb-2 block text-sm font-medium">
-                                Status
+                                {t("Drivers.status")}
                             </label>
                             <select
                                 value={formData.status}
@@ -401,8 +404,8 @@ function Drivers() {
                                 }
                                 className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-blue-500"
                             >
-                                <option value="Active">Active</option>
-                                <option value="Inactive">Inactive</option>
+                                <option value="Active">{t("Drivers.statusActive")}</option>
+                                <option value="Inactive">{t("Drivers.statusInactive")}</option>
                             </select>
                         </div>
 
@@ -412,8 +415,8 @@ function Drivers() {
                                 className="rounded-lg bg-blue-600 px-5 py-2 text-white hover:bg-blue-700"
                             >
                                 {editingId !== null
-                                    ? "Save Changes"
-                                    : "Add Driver"}
+                                    ? t("Drivers.saveChanges")
+                                    : t("Drivers.addDriver")}
                             </button>
 
                             <button
@@ -421,7 +424,7 @@ function Drivers() {
                                 onClick={resetForm}
                                 className="rounded-lg bg-gray-100 px-5 py-2 text-gray-700"
                             >
-                                Cancel
+                                {t("Drivers.cancel")}
                             </button>
                         </div>
                     </form>
@@ -433,13 +436,13 @@ function Drivers() {
                     <table className="w-full text-left">
                         <thead className="bg-gray-50 text-sm text-gray-600">
                             <tr>
-                                <th className="px-6 py-4">Driver Name</th>
-                                <th className="px-6 py-4">Phone</th>
-                                <th className="px-6 py-4">Driver Type</th>
-                                <th className="px-6 py-4">Fixed Vehicle</th>
-                                <th className="px-6 py-4">Fixed Shift</th>
-                                <th className="px-6 py-4">Status</th>
-                                <th className="px-6 py-4">Actions</th>
+                                <th className="px-6 py-4">{t("Drivers.thDriverName")}</th>
+                                <th className="px-6 py-4">{t("Drivers.thPhone")}</th>
+                                <th className="px-6 py-4">{t("Drivers.thDriverType")}</th>
+                                <th className="px-6 py-4">{t("Drivers.thFixedVehicle")}</th>
+                                <th className="px-6 py-4">{t("Drivers.thFixedShift")}</th>
+                                <th className="px-6 py-4">{t("Drivers.thStatus")}</th>
+                                <th className="px-6 py-4">{t("Drivers.thActions")}</th>
                             </tr>
                         </thead>
 
@@ -450,7 +453,7 @@ function Drivers() {
                                         colSpan="7"
                                         className="px-6 py-10 text-center text-gray-500"
                                     >
-                                        No drivers added yet
+                                        {t("Drivers.noDriversAdded")}
                                     </td>
                                 </tr>
                             ) : (
@@ -485,8 +488,8 @@ function Drivers() {
                                                     }`}
                                                 >
                                                     {isFixed
-                                                        ? "Fixed Vehicle"
-                                                        : "Shift Driver"}
+                                                        ? t("Drivers.fixedVehicleBadge")
+                                                        : t("Drivers.shiftDriverBadge")}
                                                 </span>
                                             </td>
 
@@ -495,7 +498,7 @@ function Drivers() {
                                                     <div className="flex items-center gap-2">
                                                         <Bus size={16} />
                                                         {vehicle?.number ||
-                                                            "Unknown Vehicle"}
+                                                            t("Drivers.unknownVehicle")}
                                                     </div>
                                                 ) : (
                                                     "-"
@@ -519,7 +522,9 @@ function Drivers() {
                                                             : "bg-gray-100 text-gray-600"
                                                     }`}
                                                 >
-                                                    {driver.status}
+                                                    {driver.status === "Active"
+                                                        ? t("Drivers.statusActive")
+                                                        : t("Drivers.statusInactive")}
                                                 </span>
                                             </td>
 
@@ -531,7 +536,7 @@ function Drivers() {
                                                             handleEdit(driver)
                                                         }
                                                         className="text-blue-600 hover:text-blue-800"
-                                                        aria-label={`Edit ${driver.name}`}
+                                                        aria-label={t("Drivers.editDriverAria", { name: driver.name })}
                                                     >
                                                         <Pencil size={17} />
                                                     </button>
@@ -544,7 +549,7 @@ function Drivers() {
                                                             )
                                                         }
                                                         className="text-red-600 hover:text-red-800"
-                                                        aria-label={`Delete ${driver.name}`}
+                                                        aria-label={t("Drivers.deleteDriverAria", { name: driver.name })}
                                                     >
                                                         <Trash2 size={17} />
                                                     </button>
@@ -561,9 +566,9 @@ function Drivers() {
 
             <ConfirmModal
                 isOpen={confirmDelete.open}
-                title="Delete Driver?"
-                message="Are you sure you want to delete this driver?"
-                confirmLabel="Delete"
+                title={t("Drivers.deleteModalTitle")}
+                message={t("Drivers.deleteModalMessage")}
+                confirmLabel={t("Drivers.deleteModalConfirm")}
                 onConfirm={confirmDeleteDriver}
                 onCancel={() =>
                     setConfirmDelete({ open: false, id: null })
@@ -572,7 +577,7 @@ function Drivers() {
 
             <AlertModal
                 isOpen={alertModal.open}
-                title="Validation Error"
+                title={t("Drivers.validationErrorTitle")}
                 message={alertModal.message}
                 type="warning"
                 onClose={() =>

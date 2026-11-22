@@ -1,3 +1,5 @@
+import LanguageSwitcher from "../LanguageSwitcher";
+
 function Header() {
   return (
     <header className="flex h-16 items-center justify-between border-b bg-white px-6">
@@ -5,9 +7,12 @@ function Header() {
         Fleet Management
       </h2>
 
-      <span className="text-sm text-gray-500">
-        Welcome, Admin
-      </span>
+      <div className="flex items-center gap-4">
+        <LanguageSwitcher />
+        <span className="text-sm text-gray-500">
+          Welcome, Admin
+        </span>
+      </div>
     </header>
   );
 }

@@ -1,5 +1,6 @@
 
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Plus, Trash2, Users, Bus, Clock } from "lucide-react";
 import { useFleet } from "../../../context/FleetContext";
 import { useDrivers } from "../../../context/DriversContext";
@@ -94,6 +95,7 @@ function getLocalDate() {
 }
 
 export default function DriverAssignments() {
+    const { t } = useTranslation();
     const { vehicles } = useFleet();
     const { drivers } = useDrivers();
 
@@ -213,7 +215,7 @@ export default function DriverAssignments() {
         if (!form.vehicleId || !form.driverId) {
             setAlertModal({
                 open: true,
-                message: "Please select a vehicle and a driver.",
+                message: t("DriverAssignments.alerts.selectVehicleAndDriver"),
             });
             return;
         }
@@ -221,7 +223,7 @@ export default function DriverAssignments() {
         if (!date) {
             setAlertModal({
                 open: true,
-                message: "Please select an operating date.",
+                message: t("DriverAssignments.alerts.selectOperatingDate"),
             });
             return;
         }
@@ -233,7 +235,7 @@ export default function DriverAssignments() {
         if (!driver) {
             setAlertModal({
                 open: true,
-                message: "The selected driver is not available.",
+                message: t("DriverAssignments.alerts.driverNotAvailable"),
             });
             return;
         }
@@ -246,8 +248,7 @@ export default function DriverAssignments() {
             if (Number(driver.vehicleId) !== Number(form.vehicleId)) {
                 setAlertModal({
                     open: true,
-                    message:
-                        "This driver is permanently assigned to another vehicle.",
+                    message: t("DriverAssignments.alerts.driverPermanentlyAssigned"),
                 });
                 return;
             }
@@ -262,7 +263,7 @@ export default function DriverAssignments() {
         if (!startTime || !endTime) {
             setAlertModal({
                 open: true,
-                message: "Please enter the shift start and end times.",
+                message: t("DriverAssignments.alerts.enterShiftTimes"),
             });
             return;
         }
@@ -270,7 +271,7 @@ export default function DriverAssignments() {
         if (startTime === endTime) {
             setAlertModal({
                 open: true,
-                message: "Start time and end time cannot be the same.",
+                message: t("DriverAssignments.alerts.sameStartEndTime"),
             });
             return;
         }
@@ -294,8 +295,7 @@ export default function DriverAssignments() {
         if (vehicleConflict) {
             setAlertModal({
                 open: true,
-                message:
-                    "This vehicle already has a driver assigned during this time.",
+                message: t("DriverAssignments.alerts.vehicleTimeConflict"),
             });
             return;
         }
@@ -309,8 +309,7 @@ export default function DriverAssignments() {
         if (driverConflict) {
             setAlertModal({
                 open: true,
-                message:
-                    "This driver already has an assignment during this time.",
+                message: t("DriverAssignments.alerts.driverTimeConflict"),
             });
             return;
         }
@@ -354,22 +353,29 @@ export default function DriverAssignments() {
             (driver) => Number(driver.id) === Number(id)
         );
 
+    const formatShiftName = (shiftName) => {
+        if (shiftName === "First Shift") return t("DriverAssignments.firstShift");
+        if (shiftName === "Second Shift") return t("DriverAssignments.secondShift");
+        if (shiftName === "Single Shift") return t("DriverAssignments.singleShift");
+        return shiftName;
+    };
+
     return (
         <div className="space-y-6">
             <div>
                 <h1 className="text-2xl font-bold text-slate-800">
-                    Driver Assignments
+                    {t("DriverAssignments.title")}
                 </h1>
 
                 <p className="mt-1 text-sm text-slate-500">
-                    Assign drivers to vehicles for each operating day.
+                    {t("DriverAssignments.description")}
                 </p>
             </div>
 
             {/* Operating Date */}
             <div className="rounded-xl border border-slate-200 bg-white p-5">
                 <label className="mb-2 block text-sm font-medium text-slate-700">
-                    Operating Date
+                    {t("DriverAssignments.operatingDate")}
                 </label>
 
                 <input
@@ -385,20 +391,20 @@ export default function DriverAssignments() {
                 <div className="rounded-xl border border-slate-200 bg-white p-4">
                     <div className="flex items-center gap-2 font-semibold text-slate-800">
                         <Clock size={18} />
-                        First Shift
+                        {t("DriverAssignments.firstShift")}
                     </div>
                     <p className="mt-2 text-sm text-slate-600">
-                        12:00 AM - 12:00 PM
+                        {t("DriverAssignments.firstShiftTime")}
                     </p>
                 </div>
 
                 <div className="rounded-xl border border-slate-200 bg-white p-4">
                     <div className="flex items-center gap-2 font-semibold text-slate-800">
                         <Clock size={18} />
-                        Second Shift
+                        {t("DriverAssignments.secondShift")}
                     </div>
                     <p className="mt-2 text-sm text-slate-600">
-                        12:00 PM - 12:00 AM
+                        {t("DriverAssignments.secondShiftTime")}
                     </p>
                 </div>
             </div>
@@ -409,14 +415,14 @@ export default function DriverAssignments() {
                 className="rounded-xl border border-slate-200 bg-white p-5"
             >
                 <h2 className="mb-5 text-lg font-semibold text-slate-800">
-                    Assign Driver
+                    {t("DriverAssignments.assignDriver")}
                 </h2>
 
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {/* Vehicle */}
                     <div>
                         <label className="mb-2 block text-sm font-medium">
-                            Vehicle
+                            {t("DriverAssignments.vehicle")}
                         </label>
 
                         <select
@@ -427,7 +433,7 @@ export default function DriverAssignments() {
                             className="w-full rounded-lg border border-slate-300 p-3"
                             required
                         >
-                            <option value="">Select Vehicle</option>
+                            <option value="">{t("DriverAssignments.selectVehicle")}</option>
 
                             {availableVehicles.map((vehicle) => (
                                 <option
@@ -443,7 +449,7 @@ export default function DriverAssignments() {
                     {/* Driver */}
                     <div>
                         <label className="mb-2 block text-sm font-medium">
-                            Driver
+                            {t("DriverAssignments.driver")}
                         </label>
 
                         <select
@@ -457,8 +463,8 @@ export default function DriverAssignments() {
                         >
                             <option value="">
                                 {form.vehicleId
-                                    ? "Select Driver"
-                                    : "Select Vehicle First"}
+                                    ? t("DriverAssignments.selectDriver")
+                                    : t("DriverAssignments.selectVehicleFirst")}
                             </option>
 
                             {availableDrivers.map((driver) => (
@@ -468,15 +474,15 @@ export default function DriverAssignments() {
                                 >
                                     {driver.name}
                                     {isFixedVehicleDriver(driver)
-                                        ? ` (Fixed - ${getFixedShift(driver).name})`
-                                        : " (Shift)"}
+                                        ? t("DriverAssignments.fixedSuffix", { shift: formatShiftName(getFixedShift(driver).name) })
+                                        : t("DriverAssignments.shiftSuffix")}
                                 </option>
                             ))}
                         </select>
 
                         {form.vehicleId && availableDrivers.length === 0 && (
                             <p className="mt-2 text-xs text-amber-600">
-                                No active drivers available for this vehicle.
+                                {t("DriverAssignments.noActiveDrivers")}
                             </p>
                         )}
                     </div>
@@ -484,7 +490,7 @@ export default function DriverAssignments() {
                     {/* Shift */}
                     <div>
                         <label className="mb-2 block text-sm font-medium">
-                            Shift
+                            {t("DriverAssignments.shift")}
                         </label>
 
                         <select
@@ -496,15 +502,15 @@ export default function DriverAssignments() {
                             className="w-full rounded-lg border border-slate-300 p-3 disabled:bg-slate-100 disabled:text-slate-500"
                         >
                             <option value="First Shift">
-                                First Shift (12 AM - 12 PM)
+                                {t("DriverAssignments.firstShiftOption")}
                             </option>
 
                             <option value="Second Shift">
-                                Second Shift (12 PM - 12 AM)
+                                {t("DriverAssignments.secondShiftOption")}
                             </option>
 
                             <option value="Single Shift">
-                                Single Shift
+                                {t("DriverAssignments.singleShiftOption")}
                             </option>
                         </select>
                     </div>
@@ -515,7 +521,7 @@ export default function DriverAssignments() {
                             <>
                                 <div>
                                     <label className="mb-2 block text-sm font-medium">
-                                        Start Time
+                                        {t("DriverAssignments.startTime")}
                                     </label>
 
                                     <input
@@ -534,7 +540,7 @@ export default function DriverAssignments() {
 
                                 <div>
                                     <label className="mb-2 block text-sm font-medium">
-                                        End Time
+                                        {t("DriverAssignments.endTime")}
                                     </label>
 
                                     <input
@@ -564,13 +570,13 @@ export default function DriverAssignments() {
 
                     {form.endTime <= form.startTime && (
                         <span className="text-blue-600">
-                            (Ends next day)
+                            {t("DriverAssignments.endsNextDay")}
                         </span>
                     )}
 
                     {isSelectedDriverFixed && (
                         <span className="text-blue-600">
-                            (Fixed driver shift)
+                            {t("DriverAssignments.fixedDriverShift")}
                         </span>
                     )}
                 </div>
@@ -580,7 +586,7 @@ export default function DriverAssignments() {
                     className="mt-5 flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-white hover:bg-blue-700"
                 >
                     <Plus size={18} />
-                    Assign Driver
+                    {t("DriverAssignments.assignDriverBtn")}
                 </button>
             </form>
 
@@ -588,28 +594,28 @@ export default function DriverAssignments() {
             <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
                 <div className="border-b border-slate-200 p-5">
                     <h2 className="font-semibold text-slate-800">
-                        Daily Assignments
+                        {t("DriverAssignments.dailyAssignments")}
                     </h2>
 
                     <p className="mt-1 text-sm text-slate-500">
-                        {todayAssignments.length} assignments for {date}
+                        {t("DriverAssignments.assignmentsCount", { count: todayAssignments.length, date })}
                     </p>
                 </div>
 
                 {todayAssignments.length === 0 ? (
                     <div className="p-10 text-center text-slate-500">
-                        No driver assignments for this date.
+                        {t("DriverAssignments.noAssignments")}
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
                         <table className="w-full text-left text-sm">
                             <thead className="bg-slate-50 text-slate-600">
                                 <tr>
-                                    <th className="p-4">Vehicle</th>
-                                    <th className="p-4">Driver</th>
-                                    <th className="p-4">Shift</th>
-                                    <th className="p-4">Working Hours</th>
-                                    <th className="p-4">Action</th>
+                                    <th className="p-4">{t("DriverAssignments.thVehicle")}</th>
+                                    <th className="p-4">{t("DriverAssignments.thDriver")}</th>
+                                    <th className="p-4">{t("DriverAssignments.thShift")}</th>
+                                    <th className="p-4">{t("DriverAssignments.thWorkingHours")}</th>
+                                    <th className="p-4">{t("DriverAssignments.thAction")}</th>
                                 </tr>
                             </thead>
 
@@ -626,19 +632,19 @@ export default function DriverAssignments() {
                                             <td className="p-4">
                                                 <div className="flex items-center gap-2">
                                                     <Bus size={17} />
-                                                    {vehicle?.number || "Unknown"}
+                                                    {vehicle?.number || t("DriverAssignments.unknown")}
                                                 </div>
                                             </td>
 
                                             <td className="p-4">
                                                 <div className="flex items-center gap-2">
                                                     <Users size={17} />
-                                                    {driver?.name || "Unknown"}
+                                                    {driver?.name || t("DriverAssignments.unknown")}
                                                 </div>
                                             </td>
 
                                             <td className="p-4">
-                                                {item.shift}
+                                                {formatShiftName(item.shift)}
                                             </td>
 
                                             <td className="p-4">
@@ -646,7 +652,7 @@ export default function DriverAssignments() {
 
                                                 {item.endTime <= item.startTime && (
                                                     <span className="ml-2 text-xs text-blue-600">
-                                                        Next day
+                                                        {t("DriverAssignments.nextDay")}
                                                     </span>
                                                 )}
                                             </td>
@@ -657,6 +663,7 @@ export default function DriverAssignments() {
                                                     onClick={() =>
                                                         handleDelete(item.id)
                                                     }
+                                                    aria-label={t("DriverAssignments.deleteAssignmentAria")}
                                                     className="rounded-lg p-2 text-red-600 hover:bg-red-50"
                                                 >
                                                     <Trash2 size={17} />
@@ -673,9 +680,9 @@ export default function DriverAssignments() {
 
             <ConfirmModal
                 isOpen={confirmDelete.open}
-                title="Delete Assignment?"
-                message="Are you sure you want to delete this driver assignment?"
-                confirmLabel="Delete"
+                title={t("DriverAssignments.deleteModalTitle")}
+                message={t("DriverAssignments.deleteModalMessage")}
+                confirmLabel={t("DriverAssignments.deleteModalConfirm")}
                 onConfirm={confirmDeleteAssignment}
                 onCancel={() =>
                     setConfirmDelete({ open: false, id: null })
@@ -684,7 +691,7 @@ export default function DriverAssignments() {
 
             <AlertModal
                 isOpen={alertModal.open}
-                title="Validation Error"
+                title={t("DriverAssignments.validationErrorTitle")}
                 message={alertModal.message}
                 type="warning"
                 onClose={() =>

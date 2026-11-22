@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useRoutes } from "../../../context/RoutesContext";
 import {
     MapPin,
@@ -19,6 +20,7 @@ const emptyForm = {
 };
 
 function Routes() {
+    const { t } = useTranslation();
     const { routes, setRoutes } = useRoutes();
     const [selectedRoute, setSelectedRoute] = useState(1);
     const [showForm, setShowForm] = useState(false);
@@ -45,7 +47,7 @@ function Routes() {
         const departure = Number(formData.departure);
 
         if (!name || formData.attendance === "" || formData.departure === "") {
-            setAlertModal({ open: true, message: "Please fill in all fields." });
+            setAlertModal({ open: true, message: t("Routes.alerts.fillAllFields") });
             return;
         }
 
@@ -55,7 +57,7 @@ function Routes() {
             attendance <= 0 ||
             departure <= 0
         ) {
-            setAlertModal({ open: true, message: "Travel times must be positive numbers." });
+            setAlertModal({ open: true, message: t("Routes.alerts.positiveNumbers") });
             return;
         }
 
@@ -66,7 +68,7 @@ function Routes() {
         );
 
         if (duplicate) {
-            setAlertModal({ open: true, message: "This stop already exists in this route." });
+            setAlertModal({ open: true, message: t("Routes.alerts.stopExists") });
             return;
         }
 
@@ -136,10 +138,10 @@ function Routes() {
         <div className="space-y-6">
             <div>
                 <h1 className="text-2xl font-bold text-gray-800">
-                    Routes & Stops
+                    {t("Routes.title")}
                 </h1>
                 <p className="mt-1 text-sm text-gray-500">
-                    Manage routes and pickup points
+                    {t("Routes.description")}
                 </p>
             </div>
 
@@ -152,8 +154,8 @@ function Routes() {
                             resetForm();
                         }}
                         className={`rounded-xl border p-5 text-left transition ${selectedRoute === route.id
-                                ? "border-blue-600 bg-blue-50"
-                                : "border-gray-200 bg-white hover:border-blue-300"
+                            ? "border-blue-600 bg-blue-50"
+                            : "border-gray-200 bg-white hover:border-blue-300"
                             }`}
                     >
                         <div className="flex items-center justify-between">
@@ -165,7 +167,7 @@ function Routes() {
                                 }
                             />
                             <span className="text-sm text-gray-500">
-                                {route.stops.length} Stops
+                                {t("Routes.stopsCount", { count: route.stops.length })}
                             </span>
                         </div>
                         <h2 className="mt-4 font-bold text-gray-800">
@@ -179,7 +181,7 @@ function Routes() {
                 <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
                     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 p-5">
                         <h2 className="text-lg font-bold text-gray-800">
-                            {activeRoute.name} - Stops
+                            {t("Routes.routeStops", { name: activeRoute.name })}
                         </h2>
 
                         <button
@@ -191,7 +193,7 @@ function Routes() {
                             className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
                         >
                             <Plus size={18} />
-                            Add Stop
+                            {t("Routes.addStop")}
                         </button>
                     </div>
 
@@ -202,7 +204,7 @@ function Routes() {
                         >
                             <div>
                                 <label className="mb-2 block text-sm font-medium">
-                                    Stop Name
+                                    {t("Routes.stopName")}
                                 </label>
                                 <input
                                     required
@@ -211,13 +213,13 @@ function Routes() {
                                         setFormData({ ...formData, name: e.target.value })
                                     }
                                     className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2"
-                                    placeholder="Enter stop name"
+                                    placeholder={t("Routes.stopNamePlaceholder")}
                                 />
                             </div>
 
                             <div>
                                 <label className="mb-2 block text-sm font-medium">
-                                    Attendance (Minutes)
+                                    {t("Routes.attendanceMinutes")}
                                 </label>
                                 <input
                                     required
@@ -231,13 +233,13 @@ function Routes() {
                                         })
                                     }
                                     className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2"
-                                    placeholder="e.g. 45"
+                                    placeholder={t("Routes.attendancePlaceholder")}
                                 />
                             </div>
 
                             <div>
                                 <label className="mb-2 block text-sm font-medium">
-                                    Departure (Minutes)
+                                    {t("Routes.departureMinutes")}
                                 </label>
                                 <input
                                     required
@@ -251,7 +253,7 @@ function Routes() {
                                         })
                                     }
                                     className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2"
-                                    placeholder="e.g. 60"
+                                    placeholder={t("Routes.departurePlaceholder")}
                                 />
                             </div>
 
@@ -260,7 +262,7 @@ function Routes() {
                                     type="submit"
                                     className="rounded-lg bg-blue-600 px-5 py-2 text-white"
                                 >
-                                    {editingId ? "Save Changes" : "Add Stop"}
+                                    {editingId ? t("Routes.saveChanges") : t("Routes.addStop")}
                                 </button>
 
                                 <button
@@ -269,7 +271,7 @@ function Routes() {
                                     className="flex items-center gap-1 rounded-lg bg-gray-200 px-5 py-2 text-gray-700"
                                 >
                                     <X size={16} />
-                                    Cancel
+                                    {t("Routes.cancel")}
                                 </button>
                             </div>
                         </form>
@@ -279,10 +281,10 @@ function Routes() {
                         <table className="w-full text-left">
                             <thead className="bg-gray-50 text-sm text-gray-600">
                                 <tr>
-                                    <th className="px-6 py-4">Stop Name</th>
-                                    <th className="px-6 py-4">Attendance</th>
-                                    <th className="px-6 py-4">Departure</th>
-                                    <th className="px-6 py-4">Actions</th>
+                                    <th className="px-6 py-4">{t("Routes.thStopName")}</th>
+                                    <th className="px-6 py-4">{t("Routes.thAttendance")}</th>
+                                    <th className="px-6 py-4">{t("Routes.thDeparture")}</th>
+                                    <th className="px-6 py-4">{t("Routes.thActions")}</th>
                                 </tr>
                             </thead>
 
@@ -290,7 +292,7 @@ function Routes() {
                                 {activeRoute.stops.length === 0 ? (
                                     <tr>
                                         <td colSpan="4" className="px-6 py-10 text-center text-gray-500">
-                                            No stops available
+                                            {t("Routes.noStops")}
                                         </td>
                                     </tr>
                                 ) : (
@@ -306,14 +308,14 @@ function Routes() {
                                             <td className="px-6 py-4 text-gray-600">
                                                 <span className="flex items-center gap-2">
                                                     <Clock size={15} />
-                                                    {stop.attendance} min
+                                                    {t("Routes.minutesShort", { count: stop.attendance })}
                                                 </span>
                                             </td>
 
                                             <td className="px-6 py-4 text-gray-600">
                                                 <span className="flex items-center gap-2">
                                                     <Clock size={15} />
-                                                    {stop.departure} min
+                                                    {t("Routes.minutesShort", { count: stop.departure })}
                                                 </span>
                                             </td>
 
@@ -322,7 +324,7 @@ function Routes() {
                                                     <button
                                                         onClick={() => handleEdit(stop)}
                                                         className="text-blue-600"
-                                                        aria-label={`Edit ${stop.name}`}
+                                                        aria-label={t("Routes.editStop", { name: stop.name })}
                                                     >
                                                         <Pencil size={17} />
                                                     </button>
@@ -330,7 +332,7 @@ function Routes() {
                                                     <button
                                                         onClick={() => handleDelete(stop.id)}
                                                         className="text-red-600"
-                                                        aria-label={`Delete ${stop.name}`}
+                                                        aria-label={t("Routes.deleteStop", { name: stop.name })}
                                                     >
                                                         <Trash2 size={17} />
                                                     </button>
@@ -347,16 +349,16 @@ function Routes() {
 
             <ConfirmModal
                 isOpen={confirmDelete.open}
-                title="Delete Stop?"
-                message="Are you sure you want to delete this stop?"
-                confirmLabel="Delete"
+                title={t("Routes.deleteModalTitle")}
+                message={t("Routes.deleteModalMessage")}
+                confirmLabel={t("Routes.deleteModalConfirm")}
                 onConfirm={confirmDeleteStop}
                 onCancel={() => setConfirmDelete({ open: false, stopId: null })}
             />
 
             <AlertModal
                 isOpen={alertModal.open}
-                title="Validation Error"
+                title={t("Routes.validationErrorTitle")}
                 message={alertModal.message}
                 type="warning"
                 onClose={() => setAlertModal({ open: false, message: "" })}

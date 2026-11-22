@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import {
     Sparkles,
     CheckCircle2,
@@ -23,6 +24,7 @@ import {
 } from "../../../utils/smartAllocationEngine";
 
 export default function SmartAutoAllocationModal({ isOpen, onClose, targetDate }) {
+    const { t } = useTranslation();
     const { operations, setOperations } = useOperations();
     const { vehicles, dailyAvailability } = useFleet();
     const { drivers } = useDrivers();
@@ -87,20 +89,22 @@ export default function SmartAutoAllocationModal({ isOpen, onClose, targetDate }
                         <div>
                             <div className="flex items-center gap-2">
                                 <h2 className="text-xl font-bold text-slate-800">
-                                    Smart Autonomous Fleet Allocation
+                                    {t("SmartAutoAllocationModal.title")}
                                 </h2>
                                 <span className="rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-semibold text-indigo-800">
-                                    Optimization Engine
+                                    {t("SmartAutoAllocationModal.badge")}
                                 </span>
                             </div>
                             <p className="mt-0.5 text-xs text-slate-500">
-                                Automatically assigns vehicles &amp; permanent drivers while minimizing idle times and transit gaps.
+                                {t("SmartAutoAllocationModal.subtitle")}
                             </p>
                         </div>
                     </div>
 
                     <button
                         onClick={onClose}
+                        title={t("SmartAutoAllocationModal.close")}
+                        aria-label={t("SmartAutoAllocationModal.close")}
                         className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
                     >
                         <X size={20} />
@@ -111,7 +115,7 @@ export default function SmartAutoAllocationModal({ isOpen, onClose, targetDate }
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 border-b border-slate-100 bg-slate-50/70 p-5">
                     <div>
                         <label className="mb-1 block text-xs font-semibold uppercase text-slate-500">
-                            Target Operating Date
+                            {t("SmartAutoAllocationModal.targetOperatingDate")}
                         </label>
                         <input
                             type="date"
@@ -122,37 +126,37 @@ export default function SmartAutoAllocationModal({ isOpen, onClose, targetDate }
                     </div>
 
                     <div className="rounded-xl border border-indigo-100 bg-white p-3 shadow-sm">
-                        <span className="text-[11px] font-semibold uppercase text-slate-400">Proposed Allocations</span>
+                        <span className="text-[11px] font-semibold uppercase text-slate-400">{t("SmartAutoAllocationModal.proposedAllocations")}</span>
                         <div className="mt-1 flex items-baseline gap-1">
                             <span className="text-xl font-bold text-indigo-700">
                                 {allocationResult.proposedAllocations.length}
                             </span>
-                            <span className="text-xs text-slate-500">trips filled</span>
+                            <span className="text-xs text-slate-500">{t("SmartAutoAllocationModal.tripsFilled")}</span>
                         </div>
                     </div>
 
                     <div className="rounded-xl border border-indigo-100 bg-white p-3 shadow-sm">
-                        <span className="text-[11px] font-semibold uppercase text-slate-400">Fleet Efficiency</span>
+                        <span className="text-[11px] font-semibold uppercase text-slate-400">{t("SmartAutoAllocationModal.fleetEfficiency")}</span>
                         <div className="mt-1 flex items-baseline gap-1">
                             <span className="text-xl font-bold text-emerald-600">
                                 {allocationResult.uniqueVehiclesUsed}
                             </span>
                             <span className="text-xs text-slate-500">
-                                / {allocationResult.totalActiveVehicles} active vehicles
+                                {t("SmartAutoAllocationModal.activeVehiclesCount", { count: allocationResult.totalActiveVehicles })}
                             </span>
                         </div>
                     </div>
 
                     <div className="rounded-xl border border-indigo-100 bg-white p-3 shadow-sm">
-                        <span className="text-[11px] font-semibold uppercase text-slate-400">Coverage Status</span>
+                        <span className="text-[11px] font-semibold uppercase text-slate-400">{t("SmartAutoAllocationModal.coverageStatus")}</span>
                         <div className="mt-1 flex items-center gap-1.5">
                             {allocationResult.isFullyAllocated ? (
                                 <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600">
-                                    <CheckCircle2 size={16} /> 100% Demand Met
+                                    <CheckCircle2 size={16} /> {t("SmartAutoAllocationModal.demandMet")}
                                 </span>
                             ) : (
                                 <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-600">
-                                    <ShieldAlert size={16} /> {allocationResult.unfilledRequirements.length} Unfilled
+                                    <ShieldAlert size={16} /> {t("SmartAutoAllocationModal.unfilledCount", { count: allocationResult.unfilledRequirements.length })}
                                 </span>
                             )}
                         </div>
@@ -164,7 +168,7 @@ export default function SmartAutoAllocationModal({ isOpen, onClose, targetDate }
                     {appliedNotice && (
                         <div className="mb-4 flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800 border border-emerald-200">
                             <CheckCircle2 size={18} className="text-emerald-600" />
-                            Allocations successfully applied to operations!
+                            {t("SmartAutoAllocationModal.appliedNotice")}
                         </div>
                     )}
 
@@ -172,13 +176,18 @@ export default function SmartAutoAllocationModal({ isOpen, onClose, targetDate }
                         <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50/70 p-4">
                             <div className="flex items-center gap-2 font-semibold text-amber-900 text-xs uppercase tracking-wide">
                                 <AlertCircle size={16} className="text-amber-600" />
-                                Unfulfilled Capacity Shortages
+                                {t("SmartAutoAllocationModal.unfulfilledShortages")}
                             </div>
                             <ul className="mt-2 space-y-1.5 text-xs text-amber-800">
                                 {allocationResult.unfilledRequirements.map((unfilled, idx) => (
                                     <li key={idx} className="flex items-center justify-between">
                                         <span>
-                                            • <strong>{unfilled.type} - {unfilled.route} ({unfilled.time})</strong>: Needs {unfilled.missingCount} more vehicle(s).
+                                            {t("SmartAutoAllocationModal.unfilledItem", {
+                                                type: unfilled.type === "Attendance" ? t("SmartAutoAllocationModal.table.attendance") : (unfilled.type === "Departure" ? t("SmartAutoAllocationModal.table.departure") : unfilled.type),
+                                                route: unfilled.route,
+                                                time: unfilled.time,
+                                                count: unfilled.missingCount
+                                            })}
                                         </span>
                                         <span className="text-amber-700 italic">{unfilled.reason}</span>
                                     </li>
@@ -190,9 +199,9 @@ export default function SmartAutoAllocationModal({ isOpen, onClose, targetDate }
                     {allocationResult.proposedAllocations.length === 0 ? (
                         <div className="py-16 text-center text-slate-500">
                             <Bus size={40} className="mx-auto mb-2 text-slate-300" />
-                            <p className="font-semibold text-slate-700">No pending operations require allocation for this date.</p>
+                            <p className="font-semibold text-slate-700">{t("SmartAutoAllocationModal.noPendingOperations")}</p>
                             <p className="text-xs text-slate-400 mt-1">
-                                All operations are either already fully distributed, or no operations were scheduled on {selectedDate}.
+                                {t("SmartAutoAllocationModal.allOperationsDistributed", { date: selectedDate })}
                             </p>
                         </div>
                     ) : (
@@ -200,12 +209,12 @@ export default function SmartAutoAllocationModal({ isOpen, onClose, targetDate }
                             <table className="w-full text-left text-sm">
                                 <thead className="bg-slate-100 text-xs font-semibold uppercase text-slate-600">
                                     <tr>
-                                        <th className="px-4 py-3">Operation</th>
-                                        <th className="px-4 py-3">Vehicle &amp; Type</th>
-                                        <th className="px-4 py-3">Permanent Driver &amp; Shift</th>
-                                        <th className="px-4 py-3">Assigned Stop</th>
-                                        <th className="px-4 py-3">Buffer / Transit</th>
-                                        <th className="px-4 py-3">Optimization Reason</th>
+                                        <th className="px-4 py-3">{t("SmartAutoAllocationModal.table.operation")}</th>
+                                        <th className="px-4 py-3">{t("SmartAutoAllocationModal.table.vehicleAndType")}</th>
+                                        <th className="px-4 py-3">{t("SmartAutoAllocationModal.table.driverAndShift")}</th>
+                                        <th className="px-4 py-3">{t("SmartAutoAllocationModal.table.assignedStop")}</th>
+                                        <th className="px-4 py-3">{t("SmartAutoAllocationModal.table.bufferTransit")}</th>
+                                        <th className="px-4 py-3">{t("SmartAutoAllocationModal.table.optimizationReason")}</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 text-xs">
@@ -218,7 +227,9 @@ export default function SmartAutoAllocationModal({ isOpen, onClose, targetDate }
                                                             ? "bg-amber-100 text-amber-800"
                                                             : "bg-purple-100 text-purple-800"
                                                     }`}>
-                                                        {alloc.operationType}
+                                                        {alloc.operationType === "Attendance"
+                                                            ? t("SmartAutoAllocationModal.table.attendance")
+                                                            : (alloc.operationType === "Departure" ? t("SmartAutoAllocationModal.table.departure") : alloc.operationType)}
                                                     </span>
                                                     <span>{alloc.operationRoute}</span>
                                                     <span className="font-mono text-slate-500">({alloc.operationTime})</span>
@@ -249,7 +260,7 @@ export default function SmartAutoAllocationModal({ isOpen, onClose, targetDate }
                                             </td>
                                             <td className="px-4 py-3">
                                                 <span className="rounded bg-slate-100 px-2 py-1 font-mono text-slate-700">
-                                                    {alloc.idleBufferMinutes}m idle buffer
+                                                    {t("SmartAutoAllocationModal.table.idleBuffer", { minutes: alloc.idleBufferMinutes })}
                                                 </span>
                                             </td>
                                             <td className="px-4 py-3 text-slate-500 italic text-[11px]">
@@ -270,7 +281,7 @@ export default function SmartAutoAllocationModal({ isOpen, onClose, targetDate }
                         onClick={onClose}
                         className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200/60 transition"
                     >
-                        Close
+                        {t("SmartAutoAllocationModal.close")}
                     </button>
 
                     <button
@@ -280,7 +291,7 @@ export default function SmartAutoAllocationModal({ isOpen, onClose, targetDate }
                         className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md shadow-indigo-500/25 hover:from-indigo-700 hover:to-blue-700 disabled:opacity-50 transition active:scale-95"
                     >
                         <Zap size={16} className="text-amber-300" />
-                        Apply All {allocationResult.proposedAllocations.length} Allocations
+                        {t("SmartAutoAllocationModal.applyButton", { count: allocationResult.proposedAllocations.length })}
                     </button>
                 </div>
             </div>

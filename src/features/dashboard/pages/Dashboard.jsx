@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Bus, Users, CalendarDays, ClipboardList, CheckCircle, AlertCircle } from "lucide-react";
 import { useFleet } from "../../../context/FleetContext";
 import { useDrivers } from "../../../context/DriversContext";
@@ -6,6 +7,7 @@ import StatCard from "../../../components/ui/StatCard";
 import OperatingAssistant from "../../../components/common/OperatingAssistant";
 
 function Dashboard() {
+  const { t, i18n } = useTranslation();
   const { vehicles, dailyAvailability } = useFleet();
   const { drivers } = useDrivers();
   const { operations } = useOperations();
@@ -26,18 +28,22 @@ function Dashboard() {
   const activeDrivers = drivers.filter((d) => d.status === "Active").length;
   const todayOps = operations.filter((op) => op.date === today);
 
+  const formattedDate = new Date().toLocaleDateString(
+    i18n.language?.startsWith("ar") ? "ar-EG" : "en-GB",
+    {
+      weekday: "long",
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    }
+  );
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
+        <h1 className="text-2xl font-bold text-gray-800">{t("Dashboard.title")}</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Overview of your fleet operations today &mdash;{" "}
-          {new Date().toLocaleDateString("en-GB", {
-            weekday: "long",
-            day: "2-digit",
-            month: "long",
-            year: "numeric",
-          })}.
+          {t("Dashboard.description", { date: formattedDate })}
         </p>
       </div>
 
@@ -46,13 +52,15 @@ function Dashboard() {
 
       {/* Fleet Stats */}
       <div>
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">Fleet</h2>
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">
+          {t("Dashboard.fleet")}
+        </h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard title="Total Vehicles" value={vehicles.length} icon={Bus} color="blue" />
-          <StatCard title="Available Today" value={availableVehicles} icon={CheckCircle} color="green" />
-          <StatCard title="Unavailable Today" value={unavailableVehicles} icon={AlertCircle} color="red" />
+          <StatCard title={t("Dashboard.totalVehicles")} value={vehicles.length} icon={Bus} color="blue" />
+          <StatCard title={t("Dashboard.availableToday")} value={availableVehicles} icon={CheckCircle} color="green" />
+          <StatCard title={t("Dashboard.unavailableToday")} value={unavailableVehicles} icon={AlertCircle} color="red" />
           <StatCard
-            title="Not Set Today"
+            title={t("Dashboard.notSetToday")}
             value={vehicles.length - availableVehicles - unavailableVehicles}
             icon={Bus}
             color="gray"
@@ -62,28 +70,32 @@ function Dashboard() {
 
       {/* People Stats */}
       <div>
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">People</h2>
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">
+          {t("Dashboard.people")}
+        </h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          <StatCard title="Total Drivers" value={drivers.length} icon={Users} color="purple" />
-          <StatCard title="Active Drivers" value={activeDrivers} icon={Users} color="green" />
-          <StatCard title="Inactive Drivers" value={drivers.length - activeDrivers} icon={Users} color="gray" />
+          <StatCard title={t("Dashboard.totalDrivers")} value={drivers.length} icon={Users} color="purple" />
+          <StatCard title={t("Dashboard.activeDrivers")} value={activeDrivers} icon={Users} color="green" />
+          <StatCard title={t("Dashboard.inactiveDrivers")} value={drivers.length - activeDrivers} icon={Users} color="gray" />
         </div>
       </div>
 
       {/* Operations Stats */}
       <div>
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">Operations</h2>
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">
+          {t("Dashboard.operations")}
+        </h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard title="Total Operations" value={operations.length} icon={CalendarDays} color="blue" />
-          <StatCard title="Today's Operations" value={todayOps.length} icon={CalendarDays} color="green" />
+          <StatCard title={t("Dashboard.totalOperations")} value={operations.length} icon={CalendarDays} color="blue" />
+          <StatCard title={t("Dashboard.todayOperations")} value={todayOps.length} icon={CalendarDays} color="green" />
           <StatCard
-            title="Attendance Today"
+            title={t("Dashboard.attendanceToday")}
             value={todayOps.filter((op) => op.type === "Attendance").length}
             icon={ClipboardList}
             color="yellow"
           />
           <StatCard
-            title="Departures Today"
+            title={t("Dashboard.departuresToday")}
             value={todayOps.filter((op) => op.type === "Departure").length}
             icon={ClipboardList}
             color="purple"
@@ -94,4 +106,4 @@ function Dashboard() {
   );
 }
 
-export default Dashboard;
+export default Dashboard;

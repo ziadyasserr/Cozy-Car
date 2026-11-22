@@ -7,7 +7,7 @@ function DashboardLayout() {
     <div className="min-h-screen bg-gray-100">
       <Sidebar />
 
-      <div className="ml-64">
+      <div className="ms-64">
         <Header />
 
         <main className="p-6">
